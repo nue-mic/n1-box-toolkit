@@ -133,7 +133,7 @@ export default function App() {
             <SshPanel disabled={running} onAction={handleCardClick} />
           </Tabs.Panel>
 
-          <Tabs.Panel value="update" pt="md">
+          <Tabs.Panel value="update" pt="md" keepMounted>
             <UpdatePanel />
           </Tabs.Panel>
         </Tabs>

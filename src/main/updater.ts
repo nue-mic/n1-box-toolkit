@@ -1,7 +1,7 @@
 import { app, net } from 'electron'
 import { spawn } from 'node:child_process'
 import { createWriteStream } from 'node:fs'
-import { writeFile } from 'node:fs/promises'
+import { writeFile, unlink } from 'node:fs/promises'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import type { UpdateInfo, UpdateAsset, UpdateProgress, OpResult } from '@shared/types'
@@ -10,6 +10,8 @@ import type { UpdateInfo, UpdateAsset, UpdateProgress, OpResult } from '@shared/
 const REPO = 'mia-clark/n1-box-toolkit'
 const API_LATEST = `https://api.github.com/repos/${REPO}/releases/latest`
 const UA = 'N1-OneKey-Updater' // GitHub API 要求带 User-Agent，否则 403
+const CHECK_TIMEOUT_MS = 15000 // 检查更新整体超时
+const DOWNLOAD_STALL_MS = 30000 // 下载看门狗：连续 30s 无数据则判定卡死并中止
 
 interface GhAsset {
   name: string
@@ -45,12 +47,15 @@ function pickAsset(assets: GhAsset[]): UpdateAsset | undefined {
   return { name: m.name, url: m.browser_download_url, size: m.size, sha256 }
 }
 
-/** 检查更新：拉 releases/latest，对比当前版本，返回版本/changelog/资产信息 */
+/** 检查更新：拉 releases/latest，对比当前版本，返回版本/changelog/资产信息（带整体超时） */
 export async function checkUpdate(): Promise<UpdateInfo> {
   const current = app.getVersion()
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), CHECK_TIMEOUT_MS)
   try {
     const res = await net.fetch(API_LATEST, {
-      headers: { 'User-Agent': UA, Accept: 'application/vnd.github+json' }
+      headers: { 'User-Agent': UA, Accept: 'application/vnd.github+json' },
+      signal: ctrl.signal
     })
     if (!res.ok) {
       return { ok: false, current, hasUpdate: false, error: `GitHub API 返回 ${res.status}` }
@@ -68,6 +73,8 @@ export async function checkUpdate(): Promise<UpdateInfo> {
     }
   } catch (err) {
     return { ok: false, current, hasUpdate: false, error: err instanceof Error ? err.message : String(err) }
+  } finally {
+    clearTimeout(t)
   }
 }
 
@@ -100,23 +107,55 @@ export async function downloadUpdate(onProgress: (p: UpdateProgress) => void): P
   return { ok: true }
 }
 
-/** 流式下载并实时回调进度；若资产带 sha256 则校验完整性 */
+/**
+ * 流式下载并实时回调进度；若资产带 sha256 则校验完整性。
+ * 健壮性：AbortController + 无数据看门狗(防网络挂起)；监听写入流 'error'(防未捕获崩溃)；
+ * 背压处理(drain)；任何失败都清理半成品文件并把错误抛回上层 try/catch。
+ */
 async function downloadFile(asset: UpdateAsset, dest: string, onProgress: (p: UpdateProgress) => void): Promise<void> {
-  const res = await net.fetch(asset.url, { headers: { 'User-Agent': UA } })
+  const ctrl = new AbortController()
+  const res = await net.fetch(asset.url, { headers: { 'User-Agent': UA }, signal: ctrl.signal })
   if (!res.ok || !res.body) throw new Error(`下载响应 ${res.status}`)
+
   const total = asset.size || Number(res.headers.get('content-length')) || 0
   const hash = crypto.createHash('sha256')
   const out = createWriteStream(dest)
   const reader = res.body.getReader()
   let transferred = 0
   let lastPct = -1
+  let streamErr: Error | null = null
+  let watchdog: ReturnType<typeof setTimeout> | undefined
+
+  const arm = (): void => {
+    if (watchdog) clearTimeout(watchdog)
+    watchdog = setTimeout(() => ctrl.abort(), DOWNLOAD_STALL_MS)
+  }
+  // 收敛写入流的异步 'error'（open/write/flush/close 各阶段），否则会成为未捕获异常使主进程崩溃
+  out.on('error', (e: Error) => {
+    streamErr = e
+    try {
+      ctrl.abort()
+    } catch {
+      /* ignore */
+    }
+  })
+
   try {
+    arm()
     for (;;) {
+      if (streamErr) throw streamErr
       const { done, value } = await reader.read()
       if (done) break
+      arm()
       const buf = Buffer.from(value)
       hash.update(buf)
-      await new Promise<void>((resolve, reject) => out.write(buf, (e) => (e ? reject(e) : resolve())))
+      if (!out.write(buf)) {
+        // 背压：等 drain，或在此期间出错则 reject
+        await new Promise<void>((resolve, reject) => {
+          out.once('drain', resolve)
+          out.once('error', reject)
+        })
+      }
       transferred += buf.length
       const percent = total ? Math.floor((transferred / total) * 100) : 0
       if (percent !== lastPct) {
@@ -124,12 +163,28 @@ async function downloadFile(asset: UpdateAsset, dest: string, onProgress: (p: Up
         onProgress({ percent, transferred, total })
       }
     }
+    // 收尾：等 flush/close 完成
+    await new Promise<void>((resolve, reject) => {
+      out.end(() => resolve())
+      out.once('error', reject)
+    })
+    if (streamErr) throw streamErr
+  } catch (err) {
+    try {
+      out.destroy()
+    } catch {
+      /* ignore */
+    }
+    await unlink(dest).catch(() => {}) // 清理半成品
+    throw err
   } finally {
-    out.close()
+    if (watchdog) clearTimeout(watchdog)
   }
+
   if (asset.sha256) {
     const got = hash.digest('hex').toLowerCase()
     if (got !== asset.sha256.toLowerCase()) {
+      await unlink(dest).catch(() => {}) // 删除损坏文件，避免误用
       throw new Error('文件校验失败（sha256 不匹配），已中止安装。')
     }
   }
@@ -137,25 +192,33 @@ async function downloadFile(asset: UpdateAsset, dest: string, onProgress: (p: Up
 
 /**
  * 写 helper 批处理并以独立进程启动，然后退出本应用：
- *   1) 轮询等待当前进程(PID)退出（否则 exe 被锁，安装器无法覆盖）
- *   2) 静默安装 setup.exe /S（覆盖安装到同目录）
- *   3) 启动新版（路径=覆盖前的 execPath，覆盖后不变）
+ *   1) 轮询等待当前进程退出（PID + 镜像名双重校验，避免 PID 复用误判）
+ *   2) 静默安装 setup.exe /S（覆盖安装到同目录）；失败则记录日志并仍重启旧版，避免静默吞错
+ *   3) 启动新版（路径 = 覆盖前 execPath，覆盖后不变）
  *   4) 删除自身
  */
 async function launchInstaller(setupPath: string): Promise<void> {
   const pid = process.pid
   const exe = process.execPath
+  const exeName = path.basename(exe)
   const bat = path.join(app.getPath('temp'), `n1-update-${pid}.bat`)
+  const logFile = path.join(app.getPath('temp'), `n1-update-${pid}.log`)
   const script = [
     '@echo off',
     'chcp 65001 >nul',
     ':wait',
-    `tasklist /FI "PID eq ${pid}" 2>nul | find "${pid}" >nul`,
+    `tasklist /FI "PID eq ${pid}" /FI "IMAGENAME eq ${exeName}" 2>nul | find /I "${exeName}" >nul`,
     'if not errorlevel 1 (',
     '  timeout /t 1 /nobreak >nul',
     '  goto wait',
     ')',
     `"${setupPath}" /S`,
+    'if errorlevel 1 (',
+    `  echo [update] silent install failed errorlevel=%errorlevel% > "${logFile}"`,
+    `  start "" "${exe}"`,
+    '  del "%~f0"',
+    '  exit /b 1',
+    ')',
     `start "" "${exe}"`,
     'del "%~f0"'
   ].join('\r\n')
@@ -163,5 +226,5 @@ async function launchInstaller(setupPath: string): Promise<void> {
   const child = spawn('cmd.exe', ['/c', bat], { detached: true, stdio: 'ignore', windowsHide: true })
   child.unref()
   // 给 helper 起一会儿，再退出自身让它接管
-  setTimeout(() => app.quit(), 500)
+  setTimeout(() => app.quit(), 800)
 }

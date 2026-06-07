@@ -10,8 +10,9 @@ permissions:
   contents: write
 
 concurrency:
+  # 发布流程含「回写版本号到 main + 发 tag」副作用，不能被后到的 push 中途取消（否则版本号被消耗却无 Release）→ 排队而非取消
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   # 自动版本号：推 main / 手动触发 -> patch 自增并回写 main（GITHUB_TOKEN 推送不会再触发本流程，[skip ci] 双保险），
@@ -129,7 +130,9 @@ jobs:
         with:
           tag_name: ${{ needs.version.outputs.tag }}
           name: ${{ needs.version.outputs.tag }}
+          target_commitish: ${{ needs.version.outputs.sha }}
           prerelease: false
           make_latest: true
+          generate_release_notes: true
           fail_on_unmatched_files: false
           files: dist/**/*

@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Paper, Stack, Group, Text, Badge, TextInput, PasswordInput, NumberInput, Button, SimpleGrid, Alert } from '@mantine/core'
-import { IconTerminal, IconPlugConnected, IconReload, IconUsb, IconInfoCircle } from '@tabler/icons-react'
+import { Paper, Stack, Group, TextInput, PasswordInput, NumberInput, Button, SimpleGrid, Alert } from '@mantine/core'
+import { IconPlugConnected, IconReload, IconUsb, IconInfoCircle } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { ActionCard } from './ActionCard'
 import type { ActionType } from './ActionGrid'
@@ -40,20 +40,18 @@ export function SshPanel({ disabled, onAction }: Props) {
   return (
     <Paper className="glass" radius="lg" p="md">
       <Stack gap="sm">
-        <Group justify="space-between">
-          <Group gap="xs">
-            <IconTerminal size={18} color="var(--mantine-color-teal-4)" />
-            <Text fw={700}>SSH · 已刷 OpenWrt 的盒子</Text>
-            <Badge color="teal" variant="light">
-              SSH
-            </Badge>
-          </Group>
-        </Group>
-
         <Alert color="yellow" variant="light" icon={<IconInfoCircle size={16} />} p="xs">
           盒子刷成 OpenWrt 后 ADB 连不上，改用 SSH。注意：OpenWrt 下 <b>reboot update</b> 实为普通重启 + u-boot 的 U 盘优先引导；
           真正的 PC 线刷（USB 烧录工具）需短接主板触点，无法用此命令触发。
         </Alert>
+
+        <TextInput
+          label="盒子 IP 地址"
+          placeholder="192.168.1.x"
+          disabled={running}
+          value={settings.ip}
+          onChange={(e) => setSettings({ ip: e.currentTarget.value })}
+        />
 
         <Group align="flex-end" gap="sm" wrap="wrap">
           <NumberInput

@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { Box, Stack, Text, Divider, Group } from '@mantine/core'
+import { Box, Stack, Tabs } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { IconBrandAndroid } from '@tabler/icons-react'
+import { IconBrandAndroid, IconTerminal2 } from '@tabler/icons-react'
 import { TitleBar } from './components/TitleBar'
 import { ConnectionPanel } from './components/ConnectionPanel'
 import { ActionGrid, type ActionType } from './components/ActionGrid'
@@ -33,6 +33,7 @@ export default function App() {
   const setStatus = useStore((s) => s.setStatus)
 
   const [confirmAction, setConfirmAction] = useState<ActionType | null>(null)
+  const [tab, setTab] = useState<string | null>('adb')
 
   const sshPassword = useStore((s) => s.sshPassword)
 
@@ -95,23 +96,36 @@ export default function App() {
   return (
     <Box style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <TitleBar />
-      <Stack gap="md" p="md" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
-        <ConnectionPanel />
 
-        <Group gap="xs" mt={4}>
-          <IconBrandAndroid size={16} color="var(--mantine-color-brand-4)" />
-          <Text size="sm" fw={700} c="dimmed">
-            ADB · 安卓原系统（盒子未刷 OpenWrt 时用）
-          </Text>
-          <Divider style={{ flex: 1 }} />
-        </Group>
-        <ActionGrid disabled={running} onAction={handleCardClick} />
+      <Box p="md" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <Tabs value={tab} onChange={setTab} radius="md" style={{ flexShrink: 0 }}>
+          <Tabs.List>
+            <Tabs.Tab value="adb" leftSection={<IconBrandAndroid size={16} />}>
+              ADB · 安卓原系统
+            </Tabs.Tab>
+            <Tabs.Tab value="ssh" leftSection={<IconTerminal2 size={16} />}>
+              SSH · 已刷 OpenWrt
+            </Tabs.Tab>
+          </Tabs.List>
 
-        <SshPanel disabled={running} onAction={handleCardClick} />
+          <Tabs.Panel value="adb" pt="md">
+            <Stack gap="md">
+              <ConnectionPanel />
+              <ActionGrid disabled={running} onAction={handleCardClick} />
+            </Stack>
+          </Tabs.Panel>
+
+          <Tabs.Panel value="ssh" pt="md">
+            <SshPanel disabled={running} onAction={handleCardClick} />
+          </Tabs.Panel>
+        </Tabs>
 
         {running && <ProgressOverlay />}
-        <LogConsole />
-      </Stack>
+
+        <Box mt="md" style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+          <LogConsole />
+        </Box>
+      </Box>
 
       <ConfirmModal
         opened={confirmAction !== null}

@@ -23,11 +23,13 @@ jobs:
     outputs:
       tag: ${{ steps.v.outputs.tag }}
       sha: ${{ steps.v.outputs.sha }}
+      notes: ${{ steps.v.outputs.notes }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          fetch-tags: true
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -41,7 +43,10 @@ jobs:
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
             echo "sha=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+            printf 'notes<<__EOF__\n__EOF__\n' >> "$GITHUB_OUTPUT"
           else
+            # 自增前的最新 tag，用于界定变更日志范围
+            prev=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             npm version patch --no-git-tag-version
@@ -50,6 +55,17 @@ jobs:
             git push origin HEAD:main
             echo "tag=v${ver}" >> "$GITHUB_OUTPUT"
             echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+            # 变更日志：上一个 tag..本次提交 的 commit（剔除自动发版与合并提交）
+            range="HEAD"
+            [ -n "$prev" ] && range="${prev}..HEAD"
+            list=$(git log $range --no-merges --pretty=format:'- %s' | grep -v 'chore(release)' || true)
+            [ -z "$list" ] && list="- 维护性更新"
+            {
+              echo "notes<<__EOF__"
+              echo "### 本次更新（v${ver}）"
+              echo "$list"
+              echo "__EOF__"
+            } >> "$GITHUB_OUTPUT"
           fi
 
   build:
@@ -131,6 +147,7 @@ jobs:
           tag_name: ${{ needs.version.outputs.tag }}
           name: ${{ needs.version.outputs.tag }}
           target_commitish: ${{ needs.version.outputs.sha }}
+          body: ${{ needs.version.outputs.notes }}
           prerelease: false
           make_latest: true
           generate_release_notes: true

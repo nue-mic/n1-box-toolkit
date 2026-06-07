@@ -14,8 +14,46 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # 自动版本号：推 main / 手动触发 -> patch 自增并回写 main（GITHUB_TOKEN 推送不会再触发本流程，[skip ci] 双保险），
+  # 输出 v<版本> 供后续构建与发布使用；推 v* 标签时不自增，直接用标签名。
+  version:
+    name: bump version
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.v.outputs.tag }}
+      sha: ${{ steps.v.outputs.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Bump & decide tag
+        id: v
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+            echo "sha=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            npm version patch --no-git-tag-version
+            ver=$(node -p "require('./package.json').version")
+            git commit -am "chore(release): v${ver} [skip ci]"
+            git push origin HEAD:main
+            echo "tag=v${ver}" >> "$GITHUB_OUTPUT"
+            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
     name: build (${{ matrix.os }} ${{ matrix.arch }})
+    needs: version
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -38,6 +76,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.sha }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -72,44 +112,23 @@ jobs:
             release/*.AppImage
             release/*.deb
 
-  # 汇总所有平台产物，全自动发布为【正式 Release】（不再用 pre-release）：
-  #  - 推送 tag v* -> 用该 tag 名发布
-  #  - 推送 main / 手动触发 -> 读 package.json 版本号，发布为 v<版本> 正式 Release，并标记为 Latest
-  #  每个版本号一个独立 Release，互不覆盖、不堆积旧资产（配合 build 脚本的自增版本号）
+  # 汇总所有平台产物，全自动发布为【正式 Release】并标记 Latest；版本号来自 version job（每次推送自增）。
   release:
     name: publish release
-    needs: build
+    needs: [version, build]
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout (读取 package.json 版本号)
-        uses: actions/checkout@v4
-
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
 
-      - name: Decide release tag
-        id: rel
-        shell: bash
-        run: |
-          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            # 推送 v* 标签：直接用标签名
-            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-            echo "title=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-          else
-            # 推送 main / 手动触发：读 package.json 版本号，发 v<版本> 正式版
-            ver=$(node -p "require('./package.json').version")
-            echo "tag=v${ver}" >> "$GITHUB_OUTPUT"
-            echo "title=v${ver}" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Publish / update release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.rel.outputs.tag }}
-          name: ${{ steps.rel.outputs.title }}
+          tag_name: ${{ needs.version.outputs.tag }}
+          name: ${{ needs.version.outputs.tag }}
           prerelease: false
           make_latest: true
           fail_on_unmatched_files: false

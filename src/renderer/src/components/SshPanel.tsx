@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { Paper, Stack, Group, TextInput, PasswordInput, NumberInput, Button, SimpleGrid, Alert } from '@mantine/core'
-import { IconPlugConnected, IconReload, IconUsb, IconInfoCircle } from '@tabler/icons-react'
+import { Paper, Stack, Group, Text, TextInput, PasswordInput, NumberInput, Button, SimpleGrid, Alert, Accordion, List } from '@mantine/core'
+import { IconPlugConnected, IconReload, IconUsb, IconInfoCircle, IconListNumbers } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { ActionCard } from './ActionCard'
 import type { ActionType } from './ActionGrid'
 import { useStore } from '../store'
 import { api } from '../ipc'
+import { LINE_FLASH_STEPS, LINE_FLASH_TIP } from '../flashSteps'
 
 interface Props {
   disabled?: boolean
@@ -41,9 +42,29 @@ export function SshPanel({ disabled, onAction }: Props) {
     <Paper className="glass" radius="lg" p="md">
       <Stack gap="sm">
         <Alert color="yellow" variant="light" icon={<IconInfoCircle size={16} />} p="xs">
-          盒子刷成 OpenWrt 后 ADB 连不上，改用 SSH。注意：OpenWrt 下 <b>reboot update</b> 实为普通重启 + u-boot 的 U 盘优先引导；
-          真正的 PC 线刷（USB 烧录工具）需短接主板触点，无法用此命令触发。
+          盒子刷成 OpenWrt 后 ADB 连不上，本页改用 SSH。<b>线刷必须配合电脑端的 USB 烧录工具</b>，并严格按下方步骤
+          （先在电脑开工具点「开始」等待，再回本工具点「进入线刷模式」）执行——<b>顺序错了不生效</b>。
         </Alert>
+
+        <Accordion variant="separated" radius="md" defaultValue="steps">
+          <Accordion.Item value="steps">
+            <Accordion.Control icon={<IconListNumbers size={18} color="var(--mantine-color-teal-4)" />}>
+              <Text fw={700} size="sm">
+                线刷操作步骤（必读 · 顺序不能错）
+              </Text>
+            </Accordion.Control>
+            <Accordion.Panel>
+              <List type="ordered" size="sm" spacing={6}>
+                {LINE_FLASH_STEPS.map((s, i) => (
+                  <List.Item key={i}>{s}</List.Item>
+                ))}
+              </List>
+              <Text size="xs" c="dimmed" mt="sm">
+                💡 {LINE_FLASH_TIP}
+              </Text>
+            </Accordion.Panel>
+          </Accordion.Item>
+        </Accordion>
 
         <TextInput
           label="盒子 IP 地址"
@@ -94,7 +115,7 @@ export function SshPanel({ disabled, onAction }: Props) {
           <ActionCard
             icon={<IconReload size={26} />}
             title="进入线刷模式 (SSH)"
-            description="SSH 执行 reboot update。插好已写镜像的 U 盘 → 重启后从 U 盘启动；不插 → 回原系统/recovery。"
+            description="配合电脑端 USB 烧录工具做 PC 线刷。务必先按上方步骤让工具进入「等待」，再点此经 SSH 触发重启，工具捕获后自动开刷。"
             color="teal"
             disabled={disabled}
             onClick={() => onAction('ssh-recovery')}
@@ -102,7 +123,7 @@ export function SshPanel({ disabled, onAction }: Props) {
           <ActionCard
             icon={<IconUsb size={26} />}
             title="U 盘启动 (SSH)"
-            description="SSH 执行 reboot update。需先插好含引导文件的 U 盘，盒子重启后优先从 U 盘引导。"
+            description="需先插好含引导文件的 U 盘。经 SSH 触发 reboot update，盒子重启后优先从 U 盘引导启动。"
             color="cyan"
             disabled={disabled}
             onClick={() => onAction('ssh-usbboot')}

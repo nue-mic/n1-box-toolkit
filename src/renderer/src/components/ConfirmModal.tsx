@@ -1,8 +1,9 @@
 import { useRef } from 'react'
-import { Modal, Stack, Group, Text, Button, Alert, Code, ThemeIcon } from '@mantine/core'
+import { Modal, Stack, Group, Text, Button, Alert, Code, ThemeIcon, List } from '@mantine/core'
 import { IconAlertTriangle, IconReload, IconUsb } from '@tabler/icons-react'
 import type { ActionType } from './ActionGrid'
 import type { Model } from '@shared/types'
+import { LINE_FLASH_STEPS } from '../flashSteps'
 
 interface Props {
   opened: boolean
@@ -25,7 +26,7 @@ export function ConfirmModal({ opened, action, ip, detected, onConfirm, onCancel
   const flashModel: Model | null = a === 'flash-t1' ? 't1' : a === 'flash-n1' ? 'n1' : null
   const mismatch = flashModel && detected && detected !== 'unknown' && detected !== flashModel
 
-  const isSsh = a === 'ssh-recovery' || a === 'ssh-usbboot'
+  const isSshUsbBoot = a === 'ssh-usbboot'
   const titleMap: Record<ActionType, string> = {
     'flash-t1': '确认对 T1 盒子降级 boot 分区？',
     'flash-n1': '确认对 N1 盒子降级 boot 分区？',
@@ -44,14 +45,27 @@ export function ConfirmModal({ opened, action, ip, detected, onConfirm, onCancel
             该操作会把内置/自定义 <Code>boot.img</Code> 通过 <Code>dd</Code> 写入盒子的 <Code>/dev/block/boot</Code> 分区。
             刷错型号可能导致盒子无法启动，请确认型号无误。
           </Alert>
+        ) : a === 'ssh-recovery' ? (
+          <Alert
+            color="orange"
+            variant="light"
+            icon={<IconAlertTriangle size={18} />}
+            title="执行前请先确认：电脑端烧录工具已点「开始」并处于等待状态"
+          >
+            <List type="ordered" size="sm" spacing={4}>
+              {LINE_FLASH_STEPS.map((s, i) => (
+                <List.Item key={i}>{s}</List.Item>
+              ))}
+            </List>
+          </Alert>
         ) : (
           <Group gap="sm" align="flex-start" wrap="nowrap">
             <ThemeIcon variant="light" color={useReloadIcon ? 'teal' : 'cyan'} size="lg" radius="md">
               {useReloadIcon ? <IconReload size={18} /> : <IconUsb size={18} />}
             </ThemeIcon>
             <Text size="sm" c="dimmed">
-              {isSsh
-                ? '将通过 SSH 执行 reboot update 让盒子重启。注意：OpenWrt 下这实为普通重启 + u-boot 的 U 盘优先引导（busybox 会忽略 update 参数）；真正的 PC 线刷需短接主板触点 + USB 烧录工具，无法用此命令触发。'
+              {isSshUsbBoot
+                ? '将通过 SSH 执行 reboot update。请先插好含引导文件的 U 盘，盒子重启后会优先从 U 盘引导启动。'
                 : '将连接盒子并发送重启进入对应模式的指令，不会写入 boot 分区。'}
             </Text>
           </Group>

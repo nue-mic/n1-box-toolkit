@@ -23,12 +23,13 @@ win:
   target:
     - target: nsis
       arch: [x64]
+    - target: portable
+      arch: [x64]
   extraResources:
     - from: resources/adb/win
       to: adb
     - from: resources/boot
       to: boot
-  artifactName: ${productName}-${version}-win-${arch}.${ext}
 
 nsis:
   oneClick: false
@@ -36,6 +37,11 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
+  artifactName: ${productName}-${version}-setup-${arch}.${ext}
+
+# 免安装便携版：单个 exe，双击即用（运行时自解压到临时目录）
+portable:
+  artifactName: ${productName}-${version}-portable-${arch}.${ext}
 
 mac:
   category: public.app-category.utilities

@@ -30,25 +30,35 @@ npm run dev        # 启动开发模式（HMR）
 npm run typecheck  # 类型检查
 ```
 
-## 📦 本地打 Windows 安装包
+## 📦 本地打 Windows 包（安装版 + 便携版）
 
 ```bash
 npm run build:win
 ```
 
-产物在 `release/`（NSIS 安装包 `N1 OneKey-<版本>-win-x64.exe`）。
+产物在 `release/`，一次产出两种：
+
+- **安装版**：`N1 OneKey-<版本>-setup-x64.exe`（NSIS 安装器，可选目录、建快捷方式）
+- **便携版**：`N1 OneKey-<版本>-portable-x64.exe`（**免安装，下载后双击即用**，运行时自解压到临时目录）
+
 Windows 所需的 `adb.exe` + DLL 已内置于 `resources/adb/win/`，开箱即用。
 
 ## 🤖 GitHub Actions 自动打包（mac / linux / win）
 
-推送一个 `v*` 标签即可触发 [`.github/workflows/release.yml`](.github/workflows/release.yml)，矩阵在
-`windows-latest` / `macos-latest(arm64)` / `macos-13(x64)` / `ubuntu-latest` 上分别构建，
-非 Windows 平台会先用 [`scripts/fetch-adb.mjs`](scripts/fetch-adb.mjs) 下载官方 platform-tools 的 adb，
-构建完产物上传为 Artifact，并在打 tag 时附加到 GitHub Release。
+[`.github/workflows/release.yml`](.github/workflows/release.yml) 在 `windows-latest` / `macos-latest(arm64)` /
+`macos-13(x64)` / `ubuntu-latest` 上分别构建（非 Windows 平台先用 [`scripts/fetch-adb.mjs`](scripts/fetch-adb.mjs)
+下载官方 platform-tools 的 adb），**无需手动操作**：
+
+- **推送到 `main`（或手动 Run workflow）**：自动构建四平台包，并发布/更新一个滚动的 **`latest` 预发布**——
+  在 `Releases → latest` 永远能下到最新的安装版/便携版/dmg/AppImage。
+- **推送 `v*` 标签**：发布对应版本号的正式 Release。
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+# 日常：直接推代码即自动出包到 latest 预发布
+git push
+
+# 想发正式版本时（可选）
+git tag v1.0.0 && git push origin v1.0.0
 ```
 
 ## 🗂️ 项目结构

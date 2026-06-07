@@ -72,14 +72,18 @@ jobs:
             release/*.AppImage
             release/*.deb
 
-  # 汇总所有平台产物，自动发布：
-  #  - 推送 tag v* -> 正式版本 Release
-  #  - 推送 main / 手动触发 -> 滚动更新的 latest 预发布（始终有最新可下载包，无需手动操作）
+  # 汇总所有平台产物，全自动发布为【正式 Release】（不再用 pre-release）：
+  #  - 推送 tag v* -> 用该 tag 名发布
+  #  - 推送 main / 手动触发 -> 读 package.json 版本号，发布为 v<版本> 正式 Release，并标记为 Latest
+  #  每个版本号一个独立 Release，互不覆盖、不堆积旧资产（配合 build 脚本的自增版本号）
   release:
     name: publish release
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout (读取 package.json 版本号)
+        uses: actions/checkout@v4
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -91,13 +95,14 @@ jobs:
         shell: bash
         run: |
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            # 推送 v* 标签：直接用标签名
             echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-            echo "prerelease=false" >> "$GITHUB_OUTPUT"
             echo "title=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
           else
-            echo "tag=latest" >> "$GITHUB_OUTPUT"
-            echo "prerelease=true" >> "$GITHUB_OUTPUT"
-            echo "title=Latest build (main)" >> "$GITHUB_OUTPUT"
+            # 推送 main / 手动触发：读 package.json 版本号，发 v<版本> 正式版
+            ver=$(node -p "require('./package.json').version")
+            echo "tag=v${ver}" >> "$GITHUB_OUTPUT"
+            echo "title=v${ver}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Publish / update release
@@ -105,6 +110,7 @@ jobs:
         with:
           tag_name: ${{ steps.rel.outputs.tag }}
           name: ${{ steps.rel.outputs.title }}
-          prerelease: ${{ steps.rel.outputs.prerelease }}
+          prerelease: false
+          make_latest: true
           fail_on_unmatched_files: false
           files: dist/**/*

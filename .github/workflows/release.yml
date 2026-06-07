@@ -28,10 +28,8 @@ jobs:
             arch: arm64
             adb: mac
             builder: '--mac --arm64'
-          - os: macos-13
-            arch: x64
-            adb: mac
-            builder: '--mac --x64'
+          # 注：已移除 macos-13 (Intel) —— GitHub 免费 Intel mac 运行器紧缺、常排队卡住，拖累整体发布；
+          # 现 Mac 绝大多数为 Apple Silicon(arm64)，如需 Intel 覆盖可改用 macos-latest + '--mac --universal'。
           - os: ubuntu-latest
             arch: x64
             adb: linux

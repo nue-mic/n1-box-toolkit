@@ -48,7 +48,7 @@ Windows 所需的 `adb.exe` + DLL 已内置于 `resources/adb/win/`，开箱即�
 ## 🤖 GitHub Actions 自动打包（mac / linux / win）
 
 [`.github/workflows/release.yml`](.github/workflows/release.yml) 在 `windows-latest` / `macos-latest(arm64)` /
-`macos-13(x64)` / `ubuntu-latest` 上分别构建（非 Windows 平台先用 [`scripts/fetch-adb.mjs`](scripts/fetch-adb.mjs)
+`ubuntu-latest` 上分别构建（已移除 Intel mac `macos-13`：GitHub 免费 Intel 运行器紧缺常卡队列；现 Mac 多为 Apple Silicon，需 Intel 覆盖可改 `--mac --universal`）。非 Windows 平台先用 [`scripts/fetch-adb.mjs`](scripts/fetch-adb.mjs)
 下载官方 platform-tools 的 adb），**无需手动操作**：
 
 - **推送到 `main`（或手动 Run workflow）**：自动构建四平台包，并发布/更新一个滚动的 **`latest` 预发布**——

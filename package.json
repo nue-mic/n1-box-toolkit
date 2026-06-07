@@ -1,0 +1,53 @@
+{
+  "name": "n1-box-toolkit",
+  "version": "1.0.0",
+  "description": "斐讯 T1/N1 盒子一键降级图形工具 (Electron + React + Mantine)",
+  "author": {
+    "name": "mia-clark"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mia-clark/n1-box-toolkit.git"
+  },
+  "homepage": "https://github.com/mia-clark/n1-box-toolkit#readme",
+  "bugs": {
+    "url": "https://github.com/mia-clark/n1-box-toolkit/issues"
+  },
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "start": "electron-vite preview",
+    "build": "electron-vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "fetch-adb": "node scripts/fetch-adb.mjs",
+    "build:unpack": "electron-vite build && electron-builder --dir",
+    "build:win": "electron-vite build && electron-builder --win --publish never",
+    "build:mac": "electron-vite build && electron-builder --mac --publish never",
+    "build:linux": "electron-vite build && electron-builder --linux --publish never"
+  },
+  "dependencies": {
+    "@mantine/core": "^9.3.0",
+    "@mantine/hooks": "^9.3.0",
+    "@mantine/notifications": "^9.3.0",
+    "@tabler/icons-react": "^3.44.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "zustand": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.2.0",
+    "adm-zip": "^0.5.16",
+    "electron": "^42.3.0",
+    "electron-builder": "^26.15.0",
+    "electron-vite": "^5.0.0",
+    "postcss": "^8.4.49",
+    "postcss-preset-mantine": "^1.17.0",
+    "postcss-simple-vars": "^7.0.1",
+    "typescript": "^6.0.0",
+    "vite": "^7.0.0"
+  }
+}

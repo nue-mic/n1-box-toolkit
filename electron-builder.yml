@@ -1,0 +1,64 @@
+appId: com.n1onekey.app
+productName: N1 OneKey
+copyright: N1 OneKey
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - out/**
+  - package.json
+
+asar: true
+# 不签名（个人本地使用）
+forceCodeSigning: false
+# 不使用 electron-updater 自动更新；显式置空避免检测不到仓库时生成 latest.yml 报错（CI 用 softprops 上传产物）
+publish: null
+
+# 打包后校验 adb 资源 / 补可执行位 / mac ad-hoc 签名内置二进制
+afterPack: scripts/afterPack.cjs
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  extraResources:
+    - from: resources/adb/win
+      to: adb
+    - from: resources/boot
+      to: boot
+  artifactName: ${productName}-${version}-win-${arch}.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+
+mac:
+  category: public.app-category.utilities
+  hardenedRuntime: false
+  identity: null
+  target:
+    - target: dmg
+    - target: zip
+  extraResources:
+    - from: resources/adb/mac
+      to: adb
+    - from: resources/boot
+      to: boot
+  artifactName: ${productName}-${version}-mac-${arch}.${ext}
+
+linux:
+  category: Utility
+  target:
+    - AppImage
+    - deb
+  extraResources:
+    - from: resources/adb/linux
+      to: adb
+    - from: resources/boot
+      to: boot
+  artifactName: ${productName}-${version}-linux-${arch}.${ext}

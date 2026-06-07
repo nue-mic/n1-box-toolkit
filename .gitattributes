@@ -1,0 +1,11 @@
+* text=auto
+
+*.bat text eol=crlf
+
+# 二进制资源
+*.img binary
+*.exe binary
+*.dll binary
+*.png binary
+*.ico binary
+*.icns binary

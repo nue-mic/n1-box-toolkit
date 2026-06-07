@@ -59,6 +59,7 @@ mac:
 
 linux:
   category: Utility
+  maintainer: mia-clark <mia-clark@users.noreply.github.com>
   target:
     - AppImage
     - deb

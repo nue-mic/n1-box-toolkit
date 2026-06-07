@@ -1,0 +1,30 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#22d3ee"/>
+      <stop offset="0.55" stop-color="#4f9dff"/>
+      <stop offset="1" stop-color="#a378ff"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="ds" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="18" stdDeviation="26" flood-color="#001018" flood-opacity="0.30"/>
+    </filter>
+  </defs>
+
+  <!-- 背景圆角方块 -->
+  <rect x="64" y="64" width="896" height="896" rx="224" fill="url(#bg)"/>
+  <rect x="64" y="64" width="896" height="470" rx="224" fill="url(#sheen)"/>
+
+  <!-- 托盘/盒子（开口朝上） -->
+  <path d="M320 600 L320 712 Q320 744 352 744 L672 744 Q704 744 704 712 L704 600"
+        fill="none" stroke="#ffffff" stroke-width="48" stroke-linecap="round" stroke-linejoin="round" filter="url(#ds)"/>
+
+  <!-- 下载/刷写箭头（写入到盒子） -->
+  <g fill="#ffffff" filter="url(#ds)">
+    <rect x="478" y="298" width="68" height="214" rx="34"/>
+    <path d="M398 452 L512 602 L626 452 Z"/>
+  </g>
+</svg>

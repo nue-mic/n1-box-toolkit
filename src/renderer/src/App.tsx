@@ -1,21 +1,25 @@
 import { useState } from 'react'
-import { Box, Stack } from '@mantine/core'
+import { Box, Stack, Text, Divider, Group } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
+import { IconBrandAndroid } from '@tabler/icons-react'
 import { TitleBar } from './components/TitleBar'
 import { ConnectionPanel } from './components/ConnectionPanel'
 import { ActionGrid, type ActionType } from './components/ActionGrid'
+import { SshPanel } from './components/SshPanel'
 import { LogConsole } from './components/LogConsole'
 import { ProgressOverlay } from './components/ProgressOverlay'
 import { ConfirmModal } from './components/ConfirmModal'
 import { useStore } from './store'
 import { useIpcBridge, api } from './ipc'
-import type { Model, OpResult, RetrySettings } from '@shared/types'
+import type { Model, OpResult, RetrySettings, SshCreds } from '@shared/types'
 
 const ACTION_TITLE: Record<ActionType, string> = {
   'flash-t1': 'T1 降级',
   'flash-n1': 'N1 降级',
   recovery: '进入线刷模式',
-  usbboot: 'U 盘启动'
+  usbboot: 'U 盘启动',
+  'ssh-recovery': '进入线刷模式 (SSH)',
+  'ssh-usbboot': 'U 盘启动 (SSH)'
 }
 
 export default function App() {
@@ -30,12 +34,15 @@ export default function App() {
 
   const [confirmAction, setConfirmAction] = useState<ActionType | null>(null)
 
+  const sshPassword = useStore((s) => s.sshPassword)
+
   const ip = settings.ip.trim()
   const retry: RetrySettings = {
     maxRetries: settings.maxRetries,
     retryIntervalMs: Math.max(1, settings.retryIntervalSec) * 1000,
     infiniteRetry: settings.infiniteRetry
   }
+  const sshCreds: SshCreds = { host: ip, port: settings.sshPort, username: settings.sshUser, password: sshPassword }
 
   const handleCardClick = (type: ActionType) => {
     if (!ip) {
@@ -57,8 +64,12 @@ export default function App() {
         result = await api.flash({ ip, model, settings: retry, customBootImg: settings.customBootImg[model] })
       } else if (type === 'recovery') {
         result = await api.recovery({ ip, settings: retry })
-      } else {
+      } else if (type === 'usbboot') {
         result = await api.usbBoot({ ip })
+      } else if (type === 'ssh-recovery') {
+        result = await api.sshRecovery(sshCreds)
+      } else {
+        result = await api.sshUsbBoot(sshCreds)
       }
     } catch (err) {
       result = { ok: false, error: err instanceof Error ? err.message : String(err) }
@@ -84,9 +95,20 @@ export default function App() {
   return (
     <Box style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <TitleBar />
-      <Stack gap="md" p="md" style={{ flex: 1, minHeight: 0 }}>
+      <Stack gap="md" p="md" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         <ConnectionPanel />
+
+        <Group gap="xs" mt={4}>
+          <IconBrandAndroid size={16} color="var(--mantine-color-brand-4)" />
+          <Text size="sm" fw={700} c="dimmed">
+            ADB · 安卓原系统（盒子未刷 OpenWrt 时用）
+          </Text>
+          <Divider style={{ flex: 1 }} />
+        </Group>
         <ActionGrid disabled={running} onAction={handleCardClick} />
+
+        <SshPanel disabled={running} onAction={handleCardClick} />
+
         {running && <ProgressOverlay />}
         <LogConsole />
       </Stack>

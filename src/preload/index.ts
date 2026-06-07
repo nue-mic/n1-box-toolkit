@@ -5,6 +5,7 @@ import type {
   RecoveryPayload,
   UsbBootPayload,
   DetectPayload,
+  SshCreds,
   LogEntry,
   OpStatus
 } from '@shared/types'
@@ -18,6 +19,9 @@ const api: Api = {
   recovery: (p: RecoveryPayload) => ipcRenderer.invoke('op:recovery', p),
   usbBoot: (p: UsbBootPayload) => ipcRenderer.invoke('op:usbBoot', p),
   detect: (p: DetectPayload) => ipcRenderer.invoke('op:detect', p),
+  sshTest: (p: SshCreds) => ipcRenderer.invoke('op:sshTest', p),
+  sshRecovery: (p: SshCreds) => ipcRenderer.invoke('op:sshRecovery', p),
+  sshUsbBoot: (p: SshCreds) => ipcRenderer.invoke('op:sshUsbBoot', p),
   cancel: () => ipcRenderer.send('op:cancel'),
 
   pickBootImg: () => ipcRenderer.invoke('dialog:pickBootImg'),

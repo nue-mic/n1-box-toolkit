@@ -15,6 +15,8 @@ export type Phase =
   | 'rebooting'
   | 'recovery'
   | 'usbboot'
+  | 'sshconnecting'
+  | 'sshexec'
   | 'done'
   | 'error'
   | 'cancelled'
@@ -60,6 +62,22 @@ export interface DetectPayload {
   ip: string
 }
 
+// ===== SSH（已刷 OpenWrt 的盒子）=====
+export type SshAction = 'recovery' | 'usbboot'
+
+export interface SshCreds {
+  host: string
+  port: number
+  username: string
+  password: string
+}
+
+export interface SshTestResult {
+  ok: boolean
+  info?: string
+  error?: string
+}
+
 export interface DetectResult {
   ok: boolean
   model: Model | 'unknown'
@@ -88,6 +106,9 @@ export interface Api {
   recovery(p: RecoveryPayload): Promise<OpResult>
   usbBoot(p: UsbBootPayload): Promise<OpResult>
   detect(p: DetectPayload): Promise<DetectResult>
+  sshTest(p: SshCreds): Promise<SshTestResult>
+  sshRecovery(p: SshCreds): Promise<OpResult>
+  sshUsbBoot(p: SshCreds): Promise<OpResult>
   cancel(): void
   pickBootImg(): Promise<string | null>
   saveLog(text: string): Promise<SaveResult>
@@ -112,6 +133,8 @@ export const PHASE_LABEL: Record<Phase, string> = {
   rebooting: '重启盒子',
   recovery: '进入线刷模式',
   usbboot: '进入 U 盘启动',
+  sshconnecting: 'SSH 连接中',
+  sshexec: 'SSH 执行命令',
   done: '已完成',
   error: '出错',
   cancelled: '已取消'

@@ -11,6 +11,9 @@ export interface Settings {
   retryIntervalSec: number
   infiniteRetry: boolean
   customBootImg: Record<Model, string | null>
+  // SSH（已刷 OpenWrt）——端口/用户名持久化，密码不持久化（见下方 sshPassword）
+  sshPort: number
+  sshUser: string
 }
 
 interface AppState {
@@ -33,6 +36,10 @@ interface AppState {
   setRunning: (b: boolean) => void
   detected: Model | 'unknown' | null
   setDetected: (m: Model | 'unknown' | null) => void
+
+  // SSH 密码（瞬态，不持久化）
+  sshPassword: string
+  setSshPassword: (p: string) => void
 }
 
 export const useStore = create<AppState>()(
@@ -44,7 +51,9 @@ export const useStore = create<AppState>()(
         maxRetries: 40,
         retryIntervalSec: 3,
         infiniteRetry: false,
-        customBootImg: { t1: null, n1: null }
+        customBootImg: { t1: null, n1: null },
+        sshPort: 22,
+        sshUser: 'root'
       },
       setSettings: (patch) => set((s) => ({ settings: { ...s.settings, ...patch } })),
       setCustomBootImg: (model, path) =>
@@ -66,7 +75,9 @@ export const useStore = create<AppState>()(
       running: false,
       setRunning: (running) => set({ running }),
       detected: null,
-      setDetected: (detected) => set({ detected })
+      setDetected: (detected) => set({ detected }),
+      sshPassword: '',
+      setSshPassword: (sshPassword) => set({ sshPassword })
     }),
     {
       name: 'n1-onekey-settings',

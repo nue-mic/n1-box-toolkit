@@ -11,9 +11,12 @@ import type {
   OpStatus,
   OpResult,
   DetectResult,
-  SaveResult
+  SaveResult,
+  SshCreds,
+  SshTestResult
 } from '@shared/types'
 import { runFlash, runRecovery, runUsbBoot, detectDevice, CancelledError, FlowError, type Ctx } from './flow'
+import { runSshTest, runSshRecovery, runSshUsbBoot } from './ssh'
 
 let mainWindow: BrowserWindow | null = null
 let currentAbort: AbortController | null = null
@@ -144,6 +147,31 @@ function registerIpc(): void {
       emitLog('error', msg)
       emitStatus({ phase: 'idle' })
       return { ok: false, model: 'unknown', raw: '', error: msg }
+    } finally {
+      currentAbort = null
+    }
+  })
+
+  // SSH（已刷 OpenWrt 的盒子）
+  ipcMain.handle('op:sshRecovery', (_e, p: SshCreds): Promise<OpResult> => withOp((ctx) => runSshRecovery(p, ctx)))
+  ipcMain.handle('op:sshUsbBoot', (_e, p: SshCreds): Promise<OpResult> => withOp((ctx) => runSshUsbBoot(p, ctx)))
+  ipcMain.handle('op:sshTest', async (_e, p: SshCreds): Promise<SshTestResult> => {
+    if (currentAbort) return { ok: false, error: '有任务正在执行，无法同时测试。' }
+    currentAbort = new AbortController()
+    const ctx: Ctx = { signal: currentAbort.signal, emitLog, emitStatus }
+    try {
+      const r = await runSshTest(p, ctx)
+      return { ok: true, info: r.info }
+    } catch (err) {
+      if (err instanceof CancelledError) {
+        emitStatus({ phase: 'cancelled' })
+        emitLog('warn', 'SSH 测试已取消。')
+        return { ok: false, error: '已取消' }
+      }
+      const msg = err instanceof Error ? err.message : String(err)
+      emitLog('error', msg)
+      emitStatus({ phase: 'idle' })
+      return { ok: false, error: msg }
     } finally {
       currentAbort = null
     }

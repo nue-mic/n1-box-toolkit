@@ -11,6 +11,10 @@ files:
   - package.json
 
 asar: true
+# ssh2 的可选原生依赖 cpu-features 不参与构建：不重建原生模块、把任何 .node 解出 asar，ssh2 会自动回退纯 JS
+asarUnpack:
+  - '**/*.node'
+npmRebuild: false
 # 不签名（个人本地使用）
 forceCodeSigning: false
 # 不使用 electron-updater 自动更新；显式置空避免检测不到仓库时生成 latest.yml 报错（CI 用 softprops 上传产物）

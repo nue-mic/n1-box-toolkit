@@ -2,7 +2,7 @@ import { SimpleGrid } from '@mantine/core'
 import { IconArrowBigDownLines, IconReload, IconUsb } from '@tabler/icons-react'
 import { ActionCard } from './ActionCard'
 
-export type ActionType = 'flash-t1' | 'flash-n1' | 'recovery' | 'usbboot'
+export type ActionType = 'flash-t1' | 'flash-n1' | 'recovery' | 'usbboot' | 'ssh-recovery' | 'ssh-usbboot'
 
 interface Props {
   disabled?: boolean

@@ -7,7 +7,8 @@ import type {
   DetectPayload,
   SshCreds,
   LogEntry,
-  OpStatus
+  OpStatus,
+  UpdateProgress
 } from '@shared/types'
 
 const api: Api = {
@@ -36,6 +37,14 @@ const api: Api = {
     const handler = (_e: IpcRendererEvent, data: OpStatus) => cb(data)
     ipcRenderer.on('op:status', handler)
     return () => ipcRenderer.removeListener('op:status', handler)
+  },
+
+  checkUpdate: () => ipcRenderer.invoke('update:check'),
+  downloadUpdate: () => ipcRenderer.invoke('update:download'),
+  onUpdateProgress: (cb: (p: UpdateProgress) => void) => {
+    const handler = (_e: IpcRendererEvent, data: UpdateProgress) => cb(data)
+    ipcRenderer.on('update:progress', handler)
+    return () => ipcRenderer.removeListener('update:progress', handler)
   }
 }
 

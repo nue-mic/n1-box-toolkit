@@ -17,6 +17,7 @@ import type {
 } from '@shared/types'
 import { runFlash, runRecovery, runUsbBoot, detectDevice, CancelledError, FlowError, type Ctx } from './flow'
 import { runSshTest, runSshRecovery, runSshUsbBoot } from './ssh'
+import { checkUpdate, downloadUpdate } from './updater'
 
 let mainWindow: BrowserWindow | null = null
 let currentAbort: AbortController | null = null
@@ -209,6 +210,12 @@ function registerIpc(): void {
       return { ok: false, error: err instanceof Error ? err.message : String(err) }
     }
   })
+
+  // 升级更新（GitHub Releases）
+  ipcMain.handle('update:check', () => checkUpdate())
+  ipcMain.handle('update:download', () =>
+    downloadUpdate((p) => mainWindow?.webContents.send('update:progress', p))
+  )
 }
 
 // 单实例

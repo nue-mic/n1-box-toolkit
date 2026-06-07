@@ -34,6 +34,8 @@
     "@tabler/icons-react": "^3.44.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "ssh2": "^1.17.0",
     "zustand": "^5.0.0"
   },

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import type { LogEntry, OpStatus, Model } from '@shared/types'
+import type { LogEntry, OpStatus, Model, UpdateInfo } from '@shared/types'
 
 let logSeq = 0
 const MAX_LOGS = 2000
@@ -44,6 +44,10 @@ interface AppState {
   // SSH 密码（瞬态，不持久化）
   sshPassword: string
   setSshPassword: (p: string) => void
+
+  // 升级更新（瞬态）
+  update: UpdateInfo | null
+  setUpdate: (u: UpdateInfo | null) => void
 }
 
 export const useStore = create<AppState>()(
@@ -84,7 +88,9 @@ export const useStore = create<AppState>()(
       online: false,
       setOnline: (online) => set({ online }),
       sshPassword: 'admin@local',
-      setSshPassword: (sshPassword) => set({ sshPassword })
+      setSshPassword: (sshPassword) => set({ sshPassword }),
+      update: null,
+      setUpdate: (update) => set({ update })
     }),
     {
       name: 'n1-onekey-settings',

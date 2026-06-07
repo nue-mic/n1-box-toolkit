@@ -93,6 +93,44 @@ export interface OpResult {
   cancelled?: boolean
 }
 
+// ===== 升级更新（GitHub Releases 自研轻量更新）=====
+export interface UpdateAsset {
+  /** 资产文件名，如 N1 OneKey-1.0.2-setup-x64.exe */
+  name: string
+  /** 浏览器下载直链 */
+  url: string
+  /** 字节数 */
+  size: number
+  /** GitHub 资产 digest 解析出的 sha256（十六进制，无前缀）；拿不到则 undefined（降级不校验） */
+  sha256?: string
+}
+
+export interface UpdateInfo {
+  /** 检查是否成功（网络/解析成功）；false 时看 error */
+  ok: boolean
+  /** 当前运行版本（app.getVersion） */
+  current: string
+  /** 线上最新版本（去掉 v 前缀） */
+  latest?: string
+  /** 是否有可用更新（latest > current） */
+  hasUpdate: boolean
+  /** 最新版的 changelog（markdown，来自 release body） */
+  notes?: string
+  /** 当前平台对应的安装包资产（Windows = setup.exe） */
+  asset?: UpdateAsset
+  /** 检查失败时的错误信息 */
+  error?: string
+}
+
+export interface UpdateProgress {
+  /** 0~100 */
+  percent: number
+  /** 已下载字节 */
+  transferred: number
+  /** 总字节 */
+  total: number
+}
+
 export interface SaveResult {
   ok: boolean
   path?: string
@@ -116,6 +154,11 @@ export interface Api {
   saveLog(text: string): Promise<SaveResult>
   onLog(cb: (e: LogEntry) => void): () => void
   onStatus(cb: (s: OpStatus) => void): () => void
+
+  // 升级更新
+  checkUpdate(): Promise<UpdateInfo>
+  downloadUpdate(): Promise<OpResult>
+  onUpdateProgress(cb: (p: UpdateProgress) => void): () => void
 }
 
 // 型号 → adb devices -l 输出中用于识别的关键字

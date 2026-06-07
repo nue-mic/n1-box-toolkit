@@ -17,6 +17,8 @@
 - **SSH（已刷 OpenWrt 的盒子）**：盒子刷成 OpenWrt 后 ADB 连不上，改用 SSH（`ssh2`，密码默认不保存）。提供「测试连接」与两个 `reboot update` 按钮（进入线刷/更新模式、U 盘启动）。
   > ⚠️ 诚实说明：OpenWrt 下 busybox 的 `reboot update` 会忽略 `update` 参数，**实为普通重启**；之所以能进 U 盘系统是靠斐讯 u-boot 的「USB 优先引导」。真正的 PC 线刷（USB 烧录工具）需短接主板触点，**无法**用此命令触发。
 
+- **升级更新**：内置「升级更新」Tab，启动自动检测 GitHub 最新版本、显示 markdown 更新日志，一键全自动下载 + 静默安装 + 重启（仅 Windows 安装版，sha256 完整性校验）。
+
 ## 🖥️ 平台
 
 - 主用 **Windows**（本地可直接打包）。
@@ -98,7 +100,7 @@ xattr -dr com.apple.quarantine "/Applications/N1 OneKey.app"
 
 - 刷写会通过 `dd` 覆盖盒子 `/dev/block/boot`，**刷错型号可能导致无法启动**。本工具已做型号自动识别 + 二次校验 + 确认弹窗，但请务必自行核对。
 - 渲染层无 Node 权限（`contextIsolation` 开、`nodeIntegration` 关），adb 仅在主进程执行。
-- 本工具完全离线，不联网（CI 下载 adb 除外）。
+- 刷机流程完全离线；仅「升级更新」会访问 GitHub 检查/下载新版本（不上传任何信息），CI 下载 adb 除外。
 
 ## 🙏 致谢
 

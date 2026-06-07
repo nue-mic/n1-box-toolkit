@@ -1,7 +1,7 @@
-import { useState } from 'react'
-import { Box, Stack, Tabs } from '@mantine/core'
+import { useEffect, useState } from 'react'
+import { Box, Stack, Tabs, Indicator } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { IconBrandAndroid, IconTerminal2 } from '@tabler/icons-react'
+import { IconBrandAndroid, IconTerminal2, IconSparkles } from '@tabler/icons-react'
 import { TitleBar } from './components/TitleBar'
 import { ConnectionPanel } from './components/ConnectionPanel'
 import { ActionGrid, type ActionType } from './components/ActionGrid'
@@ -9,6 +9,7 @@ import { SshPanel } from './components/SshPanel'
 import { LogConsole } from './components/LogConsole'
 import { ProgressOverlay } from './components/ProgressOverlay'
 import { ConfirmModal } from './components/ConfirmModal'
+import { UpdatePanel } from './components/UpdatePanel'
 import { useStore } from './store'
 import { useIpcBridge, api } from './ipc'
 import type { Model, OpResult, RetrySettings, SshCreds } from '@shared/types'
@@ -31,9 +32,16 @@ export default function App() {
   const detected = useStore((s) => s.detected)
   const addLog = useStore((s) => s.addLog)
   const setStatus = useStore((s) => s.setStatus)
+  const update = useStore((s) => s.update)
+  const setUpdate = useStore((s) => s.setUpdate)
 
   const [confirmAction, setConfirmAction] = useState<ActionType | null>(null)
   const [tab, setTab] = useState<string | null>('adb')
+
+  // 启动时静默检查更新（失败不打扰用户）
+  useEffect(() => {
+    api.checkUpdate().then(setUpdate).catch(() => {})
+  }, [setUpdate])
 
   const sshPassword = useStore((s) => s.sshPassword)
 
@@ -107,6 +115,11 @@ export default function App() {
             <Tabs.Tab value="ssh" leftSection={<IconTerminal2 size={16} />}>
               SSH · 已刷 OpenWrt
             </Tabs.Tab>
+            <Tabs.Tab value="update" leftSection={<IconSparkles size={16} />}>
+              <Indicator color="grape" size={8} offset={-4} disabled={!update?.hasUpdate} processing>
+                升级更新
+              </Indicator>
+            </Tabs.Tab>
           </Tabs.List>
 
           <Tabs.Panel value="adb" pt="md">
@@ -118,6 +131,10 @@ export default function App() {
 
           <Tabs.Panel value="ssh" pt="md">
             <SshPanel disabled={running} onAction={handleCardClick} />
+          </Tabs.Panel>
+
+          <Tabs.Panel value="update" pt="md">
+            <UpdatePanel />
           </Tabs.Panel>
         </Tabs>
 

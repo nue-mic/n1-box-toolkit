@@ -24,6 +24,9 @@ export interface Ctx {
 }
 
 const CONNECT_TIMEOUT_MS = 20000
+// 检测/U盘启动时的连接重试：盒子 adbd 握手偶发不稳，连上后常先短暂 offline，需多次 disconnect+reconnect
+const DETECT_MAX_TRIES = 8
+const DETECT_RETRY_INTERVAL_MS = 1500
 
 // 用 getprop 探测设备信息（比 `adb devices -l` 的 model 字段可靠：第三方 ROM 下 ro.product.device 多半仍为 q201/p230）
 const PROP_CMD =
@@ -143,6 +146,33 @@ async function ensureOnline(ctx: Ctx, ip: string, settings: RetrySettings): Prom
   }
 }
 
+/**
+ * 连接并轮询设备状态，缓解盒子 adbd 握手不稳导致的偶发 offline。
+ * device/unauthorized 立即返回；offline/未就绪则 disconnect 后重连重试，直到成功或用尽次数。
+ * 用于「检测设备」「U盘启动」等无 RetrySettings 的一次性连接场景。
+ */
+async function connectWithRetry(
+  ctx: Ctx,
+  ip: string,
+  maxTries = DETECT_MAX_TRIES,
+  intervalMs = DETECT_RETRY_INTERVAL_MS
+): Promise<{ state: ReturnType<typeof parseAdbState>; out: StepResult }> {
+  let out!: StepResult
+  let state: ReturnType<typeof parseAdbState> = 'none'
+  for (let i = 1; i <= maxTries; i++) {
+    await step(ctx, ['connect', ip], { timeoutMs: CONNECT_TIMEOUT_MS })
+    out = await step(ctx, ['devices'])
+    state = parseAdbState(out.text, ip)
+    if (state === 'device' || state === 'unauthorized') return { state, out }
+    if (i < maxTries) {
+      ctx.emitLog('warn', `设备${state === 'offline' ? ' offline' : '未就绪'}，第 ${i}/${maxTries} 次重连...`)
+      if (state === 'offline') await step(ctx, ['disconnect', ip])
+      await delay(intervalMs, ctx.signal)
+    }
+  }
+  return { state, out }
+}
+
 /** 复刻 run.bat 的 :ADB + :second —— 连接、开 root、(重试至 online)、remount，返回识别到的型号 */
 async function prepareRoot(
   ctx: Ctx,
@@ -228,9 +258,8 @@ export async function runRecovery(p: RecoveryPayload, ctx: Ctx): Promise<void> {
 export async function runUsbBoot(p: UsbBootPayload, ctx: Ctx): Promise<void> {
   ctx.emitStatus({ phase: 'connecting' })
   await step(ctx, ['kill-server'])
-  await step(ctx, ['connect', p.ip], { timeoutMs: CONNECT_TIMEOUT_MS })
-  const out = await step(ctx, ['devices'])
-  if (parseAdbState(out.text, p.ip) !== 'device') {
+  const { state } = await connectWithRetry(ctx, p.ip)
+  if (state !== 'device') {
     throw new FlowError(`连接失败/设备未就绪：请检查 IP(${p.ip}) 与网络，或先在「检测设备」确认能连上。`)
   }
   ctx.emitStatus({ phase: 'usbboot' })
@@ -243,17 +272,7 @@ export async function runUsbBoot(p: UsbBootPayload, ctx: Ctx): Promise<void> {
 export async function detectDevice(p: DetectPayload, ctx: Ctx): Promise<DetectResult> {
   ctx.emitStatus({ phase: 'connecting' })
   await step(ctx, ['kill-server'])
-  await step(ctx, ['connect', p.ip], { timeoutMs: CONNECT_TIMEOUT_MS })
-  let out = await step(ctx, ['devices'])
-  let state = parseAdbState(out.text, p.ip)
-
-  if (state === 'offline') {
-    ctx.emitLog('warn', '设备处于 offline，尝试断开后重连一次...')
-    await step(ctx, ['disconnect', p.ip])
-    await step(ctx, ['connect', p.ip], { timeoutMs: CONNECT_TIMEOUT_MS })
-    out = await step(ctx, ['devices'])
-    state = parseAdbState(out.text, p.ip)
-  }
+  const { state, out } = await connectWithRetry(ctx, p.ip)
 
   if (state !== 'device') {
     ctx.emitStatus({ phase: 'idle' })

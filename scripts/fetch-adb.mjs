@@ -16,7 +16,8 @@ const URLS = {
 }
 
 const FILES = {
-  win: ['adb.exe', 'AdbWinApi.dll', 'AdbWinUsbApi.dll', 'fastboot.exe'],
+  // 新版 adb(1.0.41+)动态链接 libwinpthread-1.dll，缺它 adb.exe 无法启动 → 必须一并提取
+  win: ['adb.exe', 'AdbWinApi.dll', 'AdbWinUsbApi.dll', 'libwinpthread-1.dll', 'fastboot.exe'],
   mac: ['adb', 'fastboot'],
   linux: ['adb', 'fastboot']
 }

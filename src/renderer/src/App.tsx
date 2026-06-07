@@ -41,7 +41,8 @@ export default function App() {
   const retry: RetrySettings = {
     maxRetries: settings.maxRetries,
     retryIntervalMs: Math.max(1, settings.retryIntervalSec) * 1000,
-    infiniteRetry: settings.infiniteRetry
+    infiniteRetry: settings.infiniteRetry,
+    skipModelCheck: settings.skipModelCheck
   }
   const sshCreds: SshCreds = { host: ip, port: settings.sshPort, username: settings.sshUser, password: sshPassword }
 

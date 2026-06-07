@@ -27,12 +27,14 @@ export function ConnectionPanel() {
   const running = useStore((s) => s.running)
   const detected = useStore((s) => s.detected)
   const setDetected = useStore((s) => s.setDetected)
+  const online = useStore((s) => s.online)
+  const setOnline = useStore((s) => s.setOnline)
   const status = useStore((s) => s.status)
 
   const [detecting, setDetecting] = useState(false)
 
   const busy = running || detecting
-  const dotState = busy ? { 'data-busy': 'true' } : { 'data-on': detected && detected !== 'unknown' ? 'true' : 'false' }
+  const dotState = busy ? { 'data-busy': 'true' } : { 'data-on': online ? 'true' : 'false' }
 
   const onDetect = async () => {
     const ip = settings.ip.trim()
@@ -42,13 +44,19 @@ export function ConnectionPanel() {
     }
     setDetecting(true)
     setDetected(null)
+    setOnline(false)
     try {
       const r = await api.detect({ ip })
       setDetected(r.model)
+      setOnline(r.ok)
       if (r.ok) {
-        notifications.show({ color: 'teal', title: '检测成功', message: `识别到 ${r.model.toUpperCase()} 盒子。` })
+        notifications.show({
+          color: 'teal',
+          title: '已连接',
+          message: r.model === 'unknown' ? '已连接，型号未知（可能已刷第三方系统），详见日志。' : `识别到 ${r.model.toUpperCase()} 盒子。`
+        })
       } else {
-        notifications.show({ color: 'orange', title: '未识别', message: r.error || '未检测到斐讯盒子(q201/p230)。' })
+        notifications.show({ color: 'orange', title: '连接失败', message: r.error || '未连接到盒子。', autoClose: 6000 })
       }
     } finally {
       setDetecting(false)
@@ -61,10 +69,13 @@ export function ConnectionPanel() {
   }
 
   const detectedBadge = () => {
-    if (detected === 't1') return <Badge color="brand" variant="light">已识别 · T1 (q201)</Badge>
-    if (detected === 'n1') return <Badge color="accent" variant="light">已识别 · N1 (p230)</Badge>
-    if (detected === 'unknown') return <Badge color="red" variant="light">未识别</Badge>
-    return <Badge color="gray" variant="light">未检测</Badge>
+    if (online) {
+      if (detected === 't1') return <Badge color="brand" variant="light">已连接 · T1 (q201)</Badge>
+      if (detected === 'n1') return <Badge color="accent" variant="light">已连接 · N1 (p230)</Badge>
+      return <Badge color="teal" variant="light">已连接 · 型号未知</Badge>
+    }
+    if (detected === null) return <Badge color="gray" variant="light">未检测</Badge>
+    return <Badge color="red" variant="light">未连接</Badge>
   }
 
   const baseName = (p: string | null) => (p ? p.replace(/\\/g, '/').split('/').pop() : null)
@@ -136,6 +147,13 @@ export function ConnectionPanel() {
                   label="无限重试（还原原版批处理行为）"
                   checked={settings.infiniteRetry}
                   onChange={(e) => setSettings({ infiniteRetry: e.currentTarget.checked })}
+                />
+                <Switch
+                  color="orange"
+                  label="跳过型号校验（强制刷写 · 谨慎）"
+                  description="已刷第三方系统、型号识别失败但确知机型时再开；刷错型号会变砖"
+                  checked={settings.skipModelCheck}
+                  onChange={(e) => setSettings({ skipModelCheck: e.currentTarget.checked })}
                 />
 
                 <Divider />

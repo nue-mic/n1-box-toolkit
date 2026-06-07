@@ -25,12 +25,19 @@ export interface Ctx {
 
 const CONNECT_TIMEOUT_MS = 20000
 
+// 用 getprop 探测设备信息（比 `adb devices -l` 的 model 字段可靠：第三方 ROM 下 ro.product.device 多半仍为 q201/p230）
+const PROP_CMD =
+  'echo "device=$(getprop ro.product.device)"; ' +
+  'echo "model=$(getprop ro.product.model)"; ' +
+  'echo "name=$(getprop ro.product.name)"; ' +
+  'echo "android=$(getprop ro.build.version.release)"; ' +
+  'echo "board=$(getprop ro.board.platform)"'
+
 interface StepResult {
   text: string
   code: number | null
 }
 
-// 写入/挂载类命令失败的兜底关键字（adb shell 退出码在部分版本不可靠，结合 stderr 兜底）
 const FAIL_KEYWORDS = [
   'adbd cannot run as root',
   'no space left',
@@ -59,10 +66,31 @@ function delay(ms: number, signal: AbortSignal): Promise<void> {
   })
 }
 
-function parseModel(raw: string): Model | 'unknown' {
-  if (raw.includes(MODEL_TAG.t1)) return 't1'
-  if (raw.includes(MODEL_TAG.n1)) return 'n1'
+/** 从 `adb devices` 输出中解析某 IP 设备的连接状态 */
+function parseAdbState(out: string, ip: string): 'device' | 'offline' | 'unauthorized' | 'none' {
+  for (const line of out.split(/\r?\n/)) {
+    if (!line.includes(ip)) continue
+    if (/\bunauthorized\b/i.test(line)) return 'unauthorized'
+    if (/\boffline\b/i.test(line)) return 'offline'
+    if (/\bdevice\b/i.test(line)) return 'device'
+  }
+  return 'none'
+}
+
+/** 从 getprop / devices 文本判定型号（q201→T1, p230→N1） */
+function modelFromText(t: string): Model | 'unknown' {
+  if (new RegExp(MODEL_TAG.t1, 'i').test(t)) return 't1'
+  if (new RegExp(MODEL_TAG.n1, 'i').test(t)) return 'n1'
   return 'unknown'
+}
+
+/** 取设备信息文本里的有效行用于展示 */
+function infoLines(t: string): string {
+  return t
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => /=/.test(l) && !/=\s*$/.test(l))
+    .join('  |  ')
 }
 
 /** 执行一条 adb 命令，命令本身与每行输出都实时进日志；前后检查取消；返回输出与退出码 */
@@ -88,61 +116,75 @@ function assertOk(label: string, r: StepResult): void {
   }
 }
 
-/** 复刻 run.bat 的 :ADB + :second —— 连接、开 root、重试循环、remount，返回识别到的型号 */
+/** 连接并等待设备 online（处理 offline：disconnect 后重连重试） */
+async function ensureOnline(ctx: Ctx, ip: string, settings: RetrySettings): Promise<void> {
+  const max = settings.infiniteRetry ? Infinity : Math.max(1, settings.maxRetries)
+  let attempt = 0
+  for (;;) {
+    attempt++
+    await step(ctx, ['connect', ip], { timeoutMs: CONNECT_TIMEOUT_MS })
+    const out = await step(ctx, ['devices'])
+    const state = parseAdbState(out.text, ip)
+    if (state === 'device') return
+    if (state === 'unauthorized') {
+      throw new FlowError('设备未授权：请在盒子上允许此电脑的 ADB 调试后重试。')
+    }
+    if (attempt >= max) {
+      throw new FlowError(
+        state === 'offline'
+          ? `设备一直处于 offline：已重试 ${attempt} 次。请确认盒子已开机、ADB 调试已开启，或重启盒子后再试。`
+          : `连接失败：IP(${ip}) 上未发现 adb 设备（已重试 ${attempt} 次）。请检查 IP、网络是否同网段。`
+      )
+    }
+    ctx.emitStatus({ phase: 'retrying', attempt, maxAttempts: settings.infiniteRetry ? null : max })
+    ctx.emitLog('warn', `设备${state === 'offline' ? ' offline' : '未就绪'}，第 ${attempt} 次重试...`)
+    if (state === 'offline') await step(ctx, ['disconnect', ip])
+    await delay(settings.retryIntervalMs, ctx.signal)
+  }
+}
+
+/** 复刻 run.bat 的 :ADB + :second —— 连接、开 root、(重试至 online)、remount，返回识别到的型号 */
 async function prepareRoot(
   ctx: Ctx,
   ip: string,
   settings: RetrySettings,
   requireModel?: Model
-): Promise<Model> {
+): Promise<Model | 'unknown'> {
   ctx.emitStatus({ phase: 'connecting', model: requireModel })
   await step(ctx, ['kill-server'])
-  await step(ctx, ['connect', ip], { timeoutMs: CONNECT_TIMEOUT_MS })
-  const first = await step(ctx, ['devices', '-l'])
-  const detected = parseModel(first.text)
-  if (detected === 'unknown') {
-    throw new FlowError(`连接失败或未识别盒子型号。请检查 IP(${ip})、网络是否同网段、盒子是否已开启 ADB 调试。`)
-  }
-  if (requireModel && detected !== requireModel) {
-    throw new FlowError(
-      `型号不匹配：实际检测到 ${detected.toUpperCase()}(${MODEL_TAG[detected]})，但你选择了 ${requireModel.toUpperCase()}。已中止以防刷错。`
-    )
-  }
-  const model: Model = detected
-  ctx.emitLog('success', `已连接，识别型号：${model.toUpperCase()}`)
+  await ensureOnline(ctx, ip, settings)
 
-  ctx.emitStatus({ phase: 'rooting', model })
+  ctx.emitStatus({ phase: 'verifying', model: requireModel })
+  const props = await step(ctx, ['shell', PROP_CMD])
+  const detected = modelFromText(props.text)
+  ctx.emitLog('info', '设备信息：' + infoLines(props.text))
+
+  if (requireModel) {
+    if (detected === requireModel) {
+      ctx.emitLog('success', `型号匹配：${detected.toUpperCase()}`)
+    } else if (settings.skipModelCheck) {
+      ctx.emitLog(
+        'warn',
+        `⚠ 型号校验已跳过（实测=${detected === 'unknown' ? '未知' : detected.toUpperCase()}，目标=${requireModel.toUpperCase()}）。请自行确保盒子确为 ${requireModel.toUpperCase()}，否则可能变砖！`
+      )
+    } else {
+      throw new FlowError(
+        `型号不匹配：实测 ${detected === 'unknown' ? '未知（可能已刷第三方系统）' : detected.toUpperCase()}，目标 ${requireModel.toUpperCase()}。若确认是该机型，可在「高级设置」勾选「跳过型号校验」后强制刷写。`
+      )
+    }
+  }
+
+  ctx.emitStatus({ phase: 'rooting', model: requireModel })
   await step(ctx, ['shell', 'setprop', 'service.phiadb.root', '1'])
   await step(ctx, ['shell', 'setprop', 'service.adb.root', '1'])
   await step(ctx, ['kill-server'])
 
-  // 重试循环（原 :second 标签为无限循环，这里支持配置/无限）
-  const max = settings.infiniteRetry ? Infinity : Math.max(1, settings.maxRetries)
-  let attempt = 0
-  for (;;) {
-    attempt++
-    ctx.emitStatus({
-      phase: 'retrying',
-      attempt,
-      maxAttempts: settings.infiniteRetry ? null : max,
-      model
-    })
-    await delay(settings.retryIntervalMs, ctx.signal)
-    await step(ctx, ['connect', ip], { timeoutMs: CONNECT_TIMEOUT_MS })
-    const out = await step(ctx, ['devices', '-l'])
-    if (parseModel(out.text) !== 'unknown') {
-      ctx.emitLog('success', `重连成功（第 ${attempt} 次）`)
-      break
-    }
-    if (attempt >= max) {
-      throw new FlowError(`重连失败：已重试 ${attempt} 次，盒子仍未就绪。可在设置中调高次数或开启“无限重试”。`)
-    }
-    ctx.emitLog('warn', `第 ${attempt} 次重连未就绪，${(settings.retryIntervalMs / 1000).toFixed(0)}s 后重试...`)
-  }
+  ctx.emitStatus({ phase: 'retrying', model: requireModel })
+  await ensureOnline(ctx, ip, settings)
 
-  ctx.emitStatus({ phase: 'remount', model })
+  ctx.emitStatus({ phase: 'remount', model: requireModel })
   await step(ctx, ['remount'])
-  return model
+  return detected
 }
 
 /** T1/N1 降级：复刻 :T1X / :N1X */
@@ -150,9 +192,9 @@ export async function runFlash(p: FlashPayload, ctx: Ctx): Promise<void> {
   await prepareRoot(ctx, p.ip, p.settings, p.model)
 
   ctx.emitStatus({ phase: 'verifying', model: p.model })
-  const verify = await step(ctx, ['devices', '-l'])
-  if (parseModel(verify.text) !== p.model) {
-    throw new FlowError('写入前型号二次校验失败，已中止写入。')
+  const verify = await step(ctx, ['shell', PROP_CMD])
+  if (modelFromText(verify.text) !== p.model && !p.settings.skipModelCheck) {
+    throw new FlowError('写入前型号二次校验失败，已中止写入（确认机型可在「高级设置」勾选「跳过型号校验」）。')
   }
 
   const img = p.customBootImg || bootImgPath(p.model)
@@ -187,9 +229,9 @@ export async function runUsbBoot(p: UsbBootPayload, ctx: Ctx): Promise<void> {
   ctx.emitStatus({ phase: 'connecting' })
   await step(ctx, ['kill-server'])
   await step(ctx, ['connect', p.ip], { timeoutMs: CONNECT_TIMEOUT_MS })
-  const out = await step(ctx, ['devices', '-l'])
-  if (parseModel(out.text) === 'unknown') {
-    throw new FlowError(`连接失败：请检查 IP(${p.ip}) 与网络是否同网段。`)
+  const out = await step(ctx, ['devices'])
+  if (parseAdbState(out.text, p.ip) !== 'device') {
+    throw new FlowError(`连接失败/设备未就绪：请检查 IP(${p.ip}) 与网络，或先在「检测设备」确认能连上。`)
   }
   ctx.emitStatus({ phase: 'usbboot' })
   await step(ctx, ['shell', 'reboot', 'update'])
@@ -197,18 +239,44 @@ export async function runUsbBoot(p: UsbBootPayload, ctx: Ctx): Promise<void> {
   ctx.emitLog('success', '已发送 U 盘启动(reboot update) 指令。')
 }
 
-/** 仅检测设备型号 */
+/** 检测设备：连上 adb 即视为成功，打印型号与系统版本，不再因型号非 q201/p230 而失败 */
 export async function detectDevice(p: DetectPayload, ctx: Ctx): Promise<DetectResult> {
   ctx.emitStatus({ phase: 'connecting' })
   await step(ctx, ['kill-server'])
   await step(ctx, ['connect', p.ip], { timeoutMs: CONNECT_TIMEOUT_MS })
-  const raw = await step(ctx, ['devices', '-l'])
-  const model = parseModel(raw.text)
-  ctx.emitStatus({ phase: 'idle' })
-  if (model === 'unknown') {
-    ctx.emitLog('warn', '未识别到斐讯盒子（型号关键字 q201/p230 未出现）。')
-    return { ok: false, model, raw: raw.text }
+  let out = await step(ctx, ['devices'])
+  let state = parseAdbState(out.text, p.ip)
+
+  if (state === 'offline') {
+    ctx.emitLog('warn', '设备处于 offline，尝试断开后重连一次...')
+    await step(ctx, ['disconnect', p.ip])
+    await step(ctx, ['connect', p.ip], { timeoutMs: CONNECT_TIMEOUT_MS })
+    out = await step(ctx, ['devices'])
+    state = parseAdbState(out.text, p.ip)
   }
-  ctx.emitLog('success', `识别成功：${model.toUpperCase()}`)
-  return { ok: true, model, raw: raw.text }
+
+  if (state !== 'device') {
+    ctx.emitStatus({ phase: 'idle' })
+    const msg =
+      state === 'offline'
+        ? '设备 offline（adb 未就绪）：请确认盒子已开机、ADB 调试已开启，稍后重试。'
+        : state === 'unauthorized'
+          ? '设备未授权：请在盒子上允许此电脑的 ADB 调试。'
+          : `未发现 adb 设备（IP ${p.ip}）：请检查 IP、是否同网段、盒子是否在线。`
+    ctx.emitLog('warn', msg)
+    return { ok: false, model: 'unknown', raw: out.text, error: msg }
+  }
+
+  // 已连接 → 取设备信息，无论型号是否 q201/p230 都算成功
+  const props = await step(ctx, ['shell', PROP_CMD])
+  const model = modelFromText(props.text)
+  ctx.emitStatus({ phase: 'idle' })
+  ctx.emitLog('success', `已连接 ✓  ${infoLines(props.text)}`)
+  ctx.emitLog(
+    model === 'unknown' ? 'warn' : 'success',
+    model === 'unknown'
+      ? '型号非 q201/p230（可能已刷第三方系统）。连接正常，可直接发起 adb 操作；如需降级请在「高级设置」勾选「跳过型号校验」。'
+      : `识别机型：${model.toUpperCase()}`
+  )
+  return { ok: true, model, raw: props.text }
 }

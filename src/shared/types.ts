@@ -40,6 +40,8 @@ export interface RetrySettings {
   maxRetries: number
   retryIntervalMs: number
   infiniteRetry: boolean
+  /** 跳过型号(q201/p230)校验，强制刷写——用于已刷第三方系统、型号识别失败但确知机型时 */
+  skipModelCheck: boolean
 }
 
 export interface FlashPayload {

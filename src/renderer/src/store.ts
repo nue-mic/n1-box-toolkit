@@ -10,6 +10,7 @@ export interface Settings {
   maxRetries: number
   retryIntervalSec: number
   infiniteRetry: boolean
+  skipModelCheck: boolean
   customBootImg: Record<Model, string | null>
   // SSH（已刷 OpenWrt）——端口/用户名持久化，密码不持久化（见下方 sshPassword）
   sshPort: number
@@ -36,6 +37,9 @@ interface AppState {
   setRunning: (b: boolean) => void
   detected: Model | 'unknown' | null
   setDetected: (m: Model | 'unknown' | null) => void
+  // adb 是否在线（连接成功，瞬态）
+  online: boolean
+  setOnline: (b: boolean) => void
 
   // SSH 密码（瞬态，不持久化）
   sshPassword: string
@@ -51,6 +55,7 @@ export const useStore = create<AppState>()(
         maxRetries: 40,
         retryIntervalSec: 3,
         infiniteRetry: false,
+        skipModelCheck: false,
         customBootImg: { t1: null, n1: null },
         sshPort: 22,
         sshUser: 'root'
@@ -76,7 +81,9 @@ export const useStore = create<AppState>()(
       setRunning: (running) => set({ running }),
       detected: null,
       setDetected: (detected) => set({ detected }),
-      sshPassword: '',
+      online: false,
+      setOnline: (online) => set({ online }),
+      sshPassword: 'admin@local',
       setSshPassword: (sshPassword) => set({ sshPassword })
     }),
     {

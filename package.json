@@ -1,6 +1,6 @@
 {
   "name": "n1-box-toolkit",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "斐讯 T1/N1 盒子一键降级图形工具 (Electron + React + Mantine)",
   "author": {
     "name": "mia-clark"

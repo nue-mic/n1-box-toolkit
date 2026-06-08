@@ -93,16 +93,16 @@ export interface OpResult {
   cancelled?: boolean
 }
 
-// ===== 升级更新（GitHub Releases 自研轻量更新）=====
+// ===== 升级更新（electron-updater + 自建 Release 代理）=====
 export interface UpdateAsset {
-  /** 资产文件名，如 N1 OneKey-1.0.2-setup-x64.exe */
+  /** 资产文件名，如 N1 OneKey-1.0.9-setup-x64.exe */
   name: string
-  /** 浏览器下载直链 */
+  /** 浏览器下载直链（经代理，含令牌） */
   url: string
   /** 字节数 */
   size: number
-  /** GitHub 资产 digest 解析出的 sha256（十六进制，无前缀）；拿不到则 undefined（降级不校验） */
-  sha256?: string
+  /** latest.yml 给出的 sha512（base64），electron-updater 用它对比下载内容；无则未启用专业更新机制 */
+  sha512?: string
 }
 
 export interface UpdateInfo {

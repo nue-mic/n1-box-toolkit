@@ -129,12 +129,17 @@ jobs:
         with:
           name: n1-box-toolkit-${{ matrix.os }}-${{ matrix.arch }}
           if-no-files-found: warn
+          # 注意：除安装包外还要带上 electron-updater 元数据文件：
+          #   - latest.yml (Windows) / latest-mac.yml / latest-linux.yml：版本、SHA512、文件名（自动更新的入口）
+          #   - *.blockmap：差量更新所需，节省下载流量
           path: |
             release/*.exe
             release/*.dmg
             release/*.zip
             release/*.AppImage
             release/*.deb
+            release/*.blockmap
+            release/latest*.yml
 
   # 汇总所有平台产物，全自动发布为【正式 Release】并标记 Latest；版本号来自 version job（每次推送自增）。
   release:

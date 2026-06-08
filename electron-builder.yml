@@ -15,10 +15,16 @@ asar: true
 asarUnpack:
   - '**/*.node'
 npmRebuild: false
-# 不签名（个人本地使用）
+# 不签名（个人本地使用）—— 客户端 verifyUpdateCodeSignature 已显式接受无签名
 forceCodeSigning: false
-# 不使用 electron-updater 自动更新；显式置空避免检测不到仓库时生成 latest.yml 报错（CI 用 softprops 上传产物）
-publish: null
+
+# electron-updater 工作必备：生成 latest.yml（含 SHA512、版本、安装包文件名）与 *.blockmap（差量更新元数据）。
+# url 仅用于 electron-builder 在 latest.yml 内写默认下载基址，运行时我们用自定义 Provider 走自建代理多域名 fallback，
+# 因此这里写一个稳定占位（用主代理域名）即可，CI 不调用 electron-builder publish，产物仍由 softprops 上传至 GitHub Release。
+publish:
+  - provider: generic
+    url: https://gh-raw.966788.xyz/n1-box-releases
+    channel: latest
 
 # 打包后校验 adb 资源 / 补可执行位 / mac ad-hoc 签名内置二进制
 afterPack: scripts/afterPack.cjs

@@ -8,7 +8,7 @@ import {
   Badge,
   Progress,
   Alert,
-  ScrollArea,
+  Box,
   Typography
 } from '@mantine/core'
 import {
@@ -158,7 +158,11 @@ export function UpdatePanel() {
                 <Text fw={600} size="sm" mb={6}>
                   更新日志
                 </Text>
-                <ScrollArea.Autosize mah={280}>
+                {/*
+                  用原生 overflow:auto（默认 overscroll-behavior:auto，会向外层链式传播），
+                  避免 Mantine ScrollArea 在嵌套于外层滚动容器时吞掉滚轮事件。
+                */}
+                <Box style={{ maxHeight: 280, overflowY: 'auto', overflowX: 'hidden' }}>
                   <Typography>
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
@@ -173,7 +177,7 @@ export function UpdatePanel() {
                       {update.notes}
                     </ReactMarkdown>
                   </Typography>
-                </ScrollArea.Autosize>
+                </Box>
               </Paper>
             )}
           </>

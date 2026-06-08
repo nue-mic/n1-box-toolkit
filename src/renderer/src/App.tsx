@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Box, Stack, Tabs, Indicator } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { IconBrandAndroid, IconTerminal2, IconSparkles } from '@tabler/icons-react'
@@ -37,11 +37,18 @@ export default function App() {
 
   const [confirmAction, setConfirmAction] = useState<ActionType | null>(null)
   const [tab, setTab] = useState<string | null>('adb')
+  const tabScrollRef = useRef<HTMLDivElement>(null)
 
   // 启动时静默检查更新（失败不打扰用户）
   useEffect(() => {
     api.checkUpdate().then(setUpdate).catch(() => {})
   }, [setUpdate])
+
+  // 切 tab 时重置面板滚动位置，避免从一个长面板（SSH 展开）切到短面板后视野错位。
+  // 用 useLayoutEffect 在 paint 前同步置 0，否则会有一帧"旧位置→0"的闪烁。
+  useLayoutEffect(() => {
+    if (tabScrollRef.current) tabScrollRef.current.scrollTop = 0
+  }, [tab])
 
   const sshPassword = useStore((s) => s.sshPassword)
 
@@ -107,8 +114,23 @@ export default function App() {
       <TitleBar />
 
       <Box p="md" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        <Tabs value={tab} onChange={setTab} radius="md" style={{ flexShrink: 0 }}>
-          <Tabs.List>
+        {/*
+          Tabs 与 LogConsole 用 flex 3:2 共享可用空间；Tab 面板内部自带滚动，
+          这样：(1) 大屏时双方按比例增长；(2) 内容过长时只让面板内滚，不挤压日志；
+          (3) 没有嵌套滚动 —— LogConsole 自己的 ScrollArea 是兄弟而非父子关系。
+        */}
+        <Tabs
+          value={tab}
+          onChange={setTab}
+          radius="md"
+          style={{
+            flex: 3,
+            minHeight: 200,
+            display: 'flex',
+            flexDirection: 'column'
+          }}
+        >
+          <Tabs.List style={{ flexShrink: 0 }}>
             <Tabs.Tab value="adb" leftSection={<IconBrandAndroid size={16} />}>
               ADB · 安卓原系统
             </Tabs.Tab>
@@ -122,25 +144,40 @@ export default function App() {
             </Tabs.Tab>
           </Tabs.List>
 
-          <Tabs.Panel value="adb" pt="md">
-            <Stack gap="md">
-              <ConnectionPanel />
-              <ActionGrid disabled={running} onAction={handleCardClick} />
-            </Stack>
-          </Tabs.Panel>
+          {/* 面板滚动区：内容超出时仅此处出现纵向滚动条，不会挤压下方日志 */}
+          <Box
+            ref={tabScrollRef}
+            style={{
+              flex: 1,
+              minHeight: 0,
+              overflowY: 'auto',
+              overflowX: 'hidden'
+            }}
+          >
+            <Tabs.Panel value="adb" pt="md">
+              <Stack gap="md">
+                <ConnectionPanel />
+                <ActionGrid disabled={running} onAction={handleCardClick} />
+              </Stack>
+            </Tabs.Panel>
 
-          <Tabs.Panel value="ssh" pt="md">
-            <SshPanel disabled={running} onAction={handleCardClick} />
-          </Tabs.Panel>
+            <Tabs.Panel value="ssh" pt="md">
+              <SshPanel disabled={running} onAction={handleCardClick} />
+            </Tabs.Panel>
 
-          <Tabs.Panel value="update" pt="md" keepMounted>
-            <UpdatePanel />
-          </Tabs.Panel>
+            <Tabs.Panel value="update" pt="md" keepMounted>
+              <UpdatePanel />
+            </Tabs.Panel>
+          </Box>
         </Tabs>
 
-        {running && <ProgressOverlay />}
+        {running && (
+          <Box mt="md" style={{ flexShrink: 0 }}>
+            <ProgressOverlay />
+          </Box>
+        )}
 
-        <Box mt="md" style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+        <Box mt="md" style={{ flex: 2, minHeight: 200, display: 'flex' }}>
           <LogConsole />
         </Box>
       </Box>

@@ -136,10 +136,14 @@ class ProxyProvider extends Provider<EuUpdateInfo> {
     // 4) 用 electron-updater 内置 yaml 解析
     const updateInfo = parseUpdateInfo(ymlText, 'latest.yml', new URL(yamlAsset.download))
 
-    // 5) 改写 file.url 为代理的完整下载 URL —— newUrlFromBase 遇到绝对 URL 会跳过 baseUrl 拼接
-    //    blockmap 会用相同 base + '.blockmap' 推导，所以我们也必须保证 blockmap asset 在 release 里
+    // 5) 改写 file.url 为代理的完整下载 URL —— newUrlFromBase 遇到绝对 URL 会跳过 baseUrl 拼接。
+    //    注意：GitHub Release 上传时会把资产文件名里的空格替换为点，所以 latest.yml 里的
+    //    `N1 OneKey-1.0.10-setup-x64.exe`（含空格）在代理 JSON 里是 `N1.OneKey-1.0.10-setup-x64.exe`（点）。
+    //    匹配时用 normalizeName 把空格按点折算，避免 file.url 保留相对路径导致后续 new URL 抛 Invalid URL。
+    const normalizeName = (s: string): string => String(s || '').replace(/\s/g, '.')
     for (const fi of updateInfo.files || []) {
-      const asset = rel.assets.find((a) => a.name === fi.url || a.name === path.basename(fi.url))
+      const wanted = normalizeName(path.basename(fi.url))
+      const asset = rel.assets.find((a) => normalizeName(a.name) === wanted)
       if (asset) {
         // 让 sha512 不依赖文件名校验：electron-updater 用 files[].sha512 直接对比下载内容
         ;(fi as { url: string }).url = asset.download
@@ -147,7 +151,8 @@ class ProxyProvider extends Provider<EuUpdateInfo> {
     }
     // path（deprecated 但回退路径仍用得着）
     if (updateInfo.path) {
-      const pa = rel.assets.find((a) => a.name === updateInfo.path)
+      const wantedP = normalizeName(updateInfo.path)
+      const pa = rel.assets.find((a) => normalizeName(a.name) === wantedP)
       if (pa) (updateInfo as { path: string }).path = pa.download
     }
 

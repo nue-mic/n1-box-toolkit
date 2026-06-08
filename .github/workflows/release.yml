@@ -112,10 +112,17 @@ jobs:
       - name: Build (electron-vite)
         run: npm run build
 
+      # electron-builder 在 CI 上常因上游 (electron/snap/fpm 等) CDN 504/连接重置而单次失败。
+      # 用 retry 包一层：失败自动重试 2 次，每次间隔 30s；已下载缓存命中后通常第 2 次即过。
       - name: Package (electron-builder)
-        run: npx --no-install electron-builder ${{ matrix.builder }} --publish never
+        uses: nick-fields/retry@v3
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          timeout_minutes: 30
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: npx --no-install electron-builder ${{ matrix.builder }} --publish never
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

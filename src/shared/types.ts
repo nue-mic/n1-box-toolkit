@@ -155,6 +155,9 @@ export interface Api {
   onLog(cb: (e: LogEntry) => void): () => void
   onStatus(cb: (s: OpStatus) => void): () => void
 
+  // 应用信息
+  getAppVersion(): Promise<string>
+
   // 升级更新
   checkUpdate(): Promise<UpdateInfo>
   downloadUpdate(): Promise<OpResult>

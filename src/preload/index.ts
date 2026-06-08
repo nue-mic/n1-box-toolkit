@@ -39,6 +39,7 @@ const api: Api = {
     return () => ipcRenderer.removeListener('op:status', handler)
   },
 
+  getAppVersion: () => ipcRenderer.invoke('app:version'),
   checkUpdate: () => ipcRenderer.invoke('update:check'),
   downloadUpdate: () => ipcRenderer.invoke('update:download'),
   onUpdateProgress: (cb: (p: UpdateProgress) => void) => {

@@ -211,6 +211,9 @@ function registerIpc(): void {
     }
   })
 
+  // 应用版本（标题栏展示）
+  ipcMain.handle('app:version', () => app.getVersion())
+
   // 升级更新（GitHub Releases）
   ipcMain.handle('update:check', () => checkUpdate())
   ipcMain.handle('update:download', () =>

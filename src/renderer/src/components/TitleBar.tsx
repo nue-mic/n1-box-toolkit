@@ -1,4 +1,5 @@
-import { Group, Text, ActionIcon, Tooltip, useMantineColorScheme, useComputedColorScheme, ThemeIcon } from '@mantine/core'
+import { useEffect, useState } from 'react'
+import { Group, Text, Badge, ActionIcon, Tooltip, useMantineColorScheme, useComputedColorScheme, ThemeIcon } from '@mantine/core'
 import { IconMinus, IconSquare, IconX, IconSun, IconMoon, IconDeviceTv } from '@tabler/icons-react'
 import { api } from '../ipc'
 
@@ -6,6 +7,10 @@ export function TitleBar() {
   const { setColorScheme } = useMantineColorScheme()
   const computed = useComputedColorScheme('dark', { getInitialValueInEffect: true })
   const toggleTheme = () => setColorScheme(computed === 'dark' ? 'light' : 'dark')
+  const [version, setVersion] = useState('')
+  useEffect(() => {
+    api.getAppVersion().then(setVersion).catch(() => {})
+  }, [])
 
   return (
     <Group
@@ -21,6 +26,11 @@ export function TitleBar() {
         <Text fw={800} size="sm" className="gradient-text" style={{ letterSpacing: 0.5 }}>
           N1 OneKey
         </Text>
+        {version && (
+          <Badge size="xs" variant="light" color="brand" radius="sm">
+            v{version}
+          </Badge>
+        )}
         <Text size="xs" c="dimmed" visibleFrom="sm">
           斐讯 T1/N1 一键降级工具
         </Text>

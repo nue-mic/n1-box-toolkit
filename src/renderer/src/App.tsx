@@ -175,9 +175,10 @@ export default function App() {
 
           {/*
             LogConsole 包装层：flex:1 让其在空间充裕时撑满剩余视口高度（响应式），
-            minHeight:280 保证不论窗口多小、Tab 内容多长，日志区都有可用高度。
+            minHeight:220 保证拥挤时不被压扁；同时把 SshPanel 默认折叠后，
+            1600x1000 大窗口下日志区能真正吃掉 ≥500px 剩余空间不再触发主滚动。
           */}
-          <Box mt="md" style={{ flex: 1, minHeight: 280, display: 'flex' }}>
+          <Box mt="md" style={{ flex: 1, minHeight: 220, display: 'flex' }}>
             <LogConsole />
           </Box>
         </Box>

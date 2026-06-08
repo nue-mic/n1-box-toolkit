@@ -46,7 +46,12 @@ export function SshPanel({ disabled, onAction }: Props) {
           （先在电脑开工具点「开始」等待，再回本工具点「进入线刷模式」）执行——<b>顺序错了不生效</b>。
         </Alert>
 
-        <Accordion variant="separated" radius="md" defaultValue="steps">
+        {/*
+          步骤手风琴默认折叠：展开状态约 ~200px，会把 SshPanel 撑到 800+px，
+          导致大窗口下 LogConsole 包装层 flex:1 拿不到剩余空间。
+          alert 里已强调"严格按下方步骤"，用户首次会主动点开。
+        */}
+        <Accordion variant="separated" radius="md">
           <Accordion.Item value="steps">
             <Accordion.Control icon={<IconListNumbers size={18} color="var(--mantine-color-teal-4)" />}>
               <Text fw={700} size="sm">

@@ -7,7 +7,6 @@ import type { ActionType } from './ActionGrid'
 import { useStore } from '../store'
 import { api } from '../ipc'
 import { LINE_FLASH_STEPS, LINE_FLASH_TIP } from '../flashSteps'
-import { BurningToolPanel } from './BurningToolPanel'
 
 interface Props {
   disabled?: boolean
@@ -44,12 +43,9 @@ export function SshPanel({ disabled, onAction }: Props) {
       <Stack gap="sm">
         <Alert color="yellow" variant="light" icon={<IconInfoCircle size={16} />} p="xs">
           盒子刷成 OpenWrt 后 ADB 连不上，本页改用 SSH。<b>线刷必须配合电脑端的 USB 烧录工具</b>
-          （没装的下方直接点「下载」），并严格按下方步骤
+          （没装的去顶部「电脑端烧录工具」tab 一键下载），并严格按下方步骤
           （先在电脑开工具点「开始」等待，再回本工具点「进入线刷模式」）执行——<b>顺序错了不生效</b>。
         </Alert>
-
-        {/* 电脑端烧录工具下载区：紧凑式两张卡片，走自建代理下载 */}
-        <BurningToolPanel />
 
         {/*
           步骤手风琴默认折叠：展开状态约 ~200px，会把 SshPanel 撑到 800+px，

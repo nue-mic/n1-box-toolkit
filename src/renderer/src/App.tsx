@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Box, Stack, Tabs, Indicator } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { IconBrandAndroid, IconTerminal2, IconSparkles } from '@tabler/icons-react'
+import { IconBrandAndroid, IconTerminal2, IconSparkles, IconUsb } from '@tabler/icons-react'
 import { TitleBar } from './components/TitleBar'
 import { ConnectionPanel } from './components/ConnectionPanel'
 import { ActionGrid, type ActionType } from './components/ActionGrid'
@@ -10,6 +10,7 @@ import { LogConsole } from './components/LogConsole'
 import { ProgressOverlay } from './components/ProgressOverlay'
 import { ConfirmModal } from './components/ConfirmModal'
 import { UpdatePanel } from './components/UpdatePanel'
+import { BurningToolTab } from './components/BurningToolTab'
 import { useStore } from './store'
 import { useIpcBridge, api } from './ipc'
 import type { Model, OpResult, RetrySettings, SshCreds } from '@shared/types'
@@ -144,6 +145,9 @@ export default function App() {
               <Tabs.Tab value="ssh" leftSection={<IconTerminal2 size={16} />}>
                 SSH · 已刷 OpenWrt
               </Tabs.Tab>
+              <Tabs.Tab value="burning" leftSection={<IconUsb size={16} />}>
+                电脑端烧录工具
+              </Tabs.Tab>
               <Tabs.Tab value="update" leftSection={<IconSparkles size={16} />}>
                 <Indicator color="grape" size={8} offset={-4} disabled={!update?.hasUpdate} processing>
                   升级更新
@@ -160,6 +164,10 @@ export default function App() {
 
             <Tabs.Panel value="ssh" pt="md">
               <SshPanel disabled={running} onAction={handleCardClick} />
+            </Tabs.Panel>
+
+            <Tabs.Panel value="burning" pt="md" keepMounted>
+              <BurningToolTab />
             </Tabs.Panel>
 
             <Tabs.Panel value="update" pt="md" keepMounted>

@@ -137,6 +137,42 @@ export interface SaveResult {
   error?: string
 }
 
+// ===== 电脑端烧录工具（USB Burning Tool） =====
+export interface BurningTool {
+  /** 唯一 id (内部用) */
+  id: string
+  /** 展示给用户的版本标签，如 "v2.2.0" */
+  label: string
+  /** 是否标记为"推荐"（在 UI 上加突出徽章） */
+  recommended: boolean
+  /** 适用机型一句话描述，如 "N1 / T1 推荐" */
+  forBoxes: string
+  /** 完整说明，UI 显示在卡片描述区 */
+  description: string
+  /** 资产文件名 (用于显示 + 默认保存名) */
+  fileName: string
+  /** 文件字节数 */
+  size: number
+}
+
+export interface BurningToolProgress {
+  toolId: string
+  /** 0~100 */
+  percent: number
+  transferred: number
+  total: number
+  /** 写入目标路径，UI 完成后用它"在文件夹中显示" */
+  path: string
+}
+
+export interface BurningToolDownloadResult {
+  ok: boolean
+  path?: string
+  size?: number
+  error?: string
+  cancelled?: boolean
+}
+
 // preload 通过 contextBridge 暴露给渲染层的受控 API
 export interface Api {
   minimize(): void
@@ -162,6 +198,12 @@ export interface Api {
   checkUpdate(): Promise<UpdateInfo>
   downloadUpdate(): Promise<OpResult>
   onUpdateProgress(cb: (p: UpdateProgress) => void): () => void
+
+  // 电脑端烧录工具下载
+  listBurningTools(): Promise<BurningTool[]>
+  downloadBurningTool(toolId: string): Promise<BurningToolDownloadResult>
+  revealBurningTool(filePath: string): void
+  onBurningToolProgress(cb: (p: BurningToolProgress) => void): () => void
 }
 
 // 型号 → adb devices -l 输出中用于识别的关键字

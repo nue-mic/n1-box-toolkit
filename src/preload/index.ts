@@ -8,7 +8,8 @@ import type {
   SshCreds,
   LogEntry,
   OpStatus,
-  UpdateProgress
+  UpdateProgress,
+  BurningToolProgress
 } from '@shared/types'
 
 const api: Api = {
@@ -46,6 +47,15 @@ const api: Api = {
     const handler = (_e: IpcRendererEvent, data: UpdateProgress) => cb(data)
     ipcRenderer.on('update:progress', handler)
     return () => ipcRenderer.removeListener('update:progress', handler)
+  },
+
+  listBurningTools: () => ipcRenderer.invoke('burning-tool:list'),
+  downloadBurningTool: (toolId: string) => ipcRenderer.invoke('burning-tool:download', toolId),
+  revealBurningTool: (filePath: string) => ipcRenderer.send('burning-tool:reveal', filePath),
+  onBurningToolProgress: (cb: (p: BurningToolProgress) => void) => {
+    const handler = (_e: IpcRendererEvent, data: BurningToolProgress) => cb(data)
+    ipcRenderer.on('burning-tool:progress', handler)
+    return () => ipcRenderer.removeListener('burning-tool:progress', handler)
   }
 }
 

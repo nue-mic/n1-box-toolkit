@@ -18,6 +18,7 @@ import type {
 import { runFlash, runRecovery, runUsbBoot, detectDevice, CancelledError, FlowError, type Ctx } from './flow'
 import { runSshTest, runSshRecovery, runSshUsbBoot } from './ssh'
 import { checkUpdate, downloadUpdate } from './updater'
+import { listBurningTools, downloadBurningTool, revealBurningTool } from './burning-tool'
 
 let mainWindow: BrowserWindow | null = null
 let currentAbort: AbortController | null = null
@@ -219,6 +220,15 @@ function registerIpc(): void {
   ipcMain.handle('update:download', () =>
     downloadUpdate((p) => mainWindow?.webContents.send('update:progress', p))
   )
+
+  // 电脑端烧录工具
+  ipcMain.handle('burning-tool:list', () => listBurningTools())
+  ipcMain.handle('burning-tool:download', (_e, toolId: string) =>
+    downloadBurningTool(mainWindow, toolId, (p) =>
+      mainWindow?.webContents.send('burning-tool:progress', p)
+    )
+  )
+  ipcMain.on('burning-tool:reveal', (_e, filePath: string) => revealBurningTool(filePath))
 }
 
 // 单实例

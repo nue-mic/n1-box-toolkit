@@ -37,17 +37,17 @@ export default function App() {
 
   const [confirmAction, setConfirmAction] = useState<ActionType | null>(null)
   const [tab, setTab] = useState<string | null>('adb')
-  const tabScrollRef = useRef<HTMLDivElement>(null)
+  const mainScrollRef = useRef<HTMLDivElement>(null)
 
   // 启动时静默检查更新（失败不打扰用户）
   useEffect(() => {
     api.checkUpdate().then(setUpdate).catch(() => {})
   }, [setUpdate])
 
-  // 切 tab 时重置面板滚动位置，避免从一个长面板（SSH 展开）切到短面板后视野错位。
-  // 用 useLayoutEffect 在 paint 前同步置 0，否则会有一帧"旧位置→0"的闪烁。
+  // 切 tab 时把主滚动容器归零，避免从一个长 Tab（SSH 展开 + 长日志）切到短 Tab 后视野悬在底部。
+  // 用 useLayoutEffect 在 paint 前同步置 0，消除一帧"旧位置→0"的闪烁。
   useLayoutEffect(() => {
-    if (tabScrollRef.current) tabScrollRef.current.scrollTop = 0
+    if (mainScrollRef.current) mainScrollRef.current.scrollTop = 0
   }, [tab])
 
   const sshPassword = useStore((s) => s.sshPassword)
@@ -113,47 +113,44 @@ export default function App() {
     <Box style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <TitleBar />
 
-      <Box p="md" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        {/*
-          Tabs 与 LogConsole 用 flex 3:2 共享可用空间；Tab 面板内部自带滚动，
-          这样：(1) 大屏时双方按比例增长；(2) 内容过长时只让面板内滚，不挤压日志；
-          (3) 没有嵌套滚动 —— LogConsole 自己的 ScrollArea 是兄弟而非父子关系。
-        */}
-        <Tabs
-          value={tab}
-          onChange={setTab}
-          radius="md"
+      {/*
+        统一的主滚动容器 —— 所有元素（Tab 面板 + ProgressOverlay + LogConsole）共享同一条滚动条。
+        设计目标：
+        (1) 窗口空间够时，内层 flex column 撑满到 100% 视口，LogConsole 包装层 flex:1 吃掉剩余空间，
+            页面无滚动条；用户拖大窗口，LogConsole 跟着变高（响应式）。
+        (2) 窗口空间不够时，内层内容自然撑高超出视口，主滚动条出现；用户滚一条统一的滚动条就能看
+            到所有元素，包括日志区。
+        (3) 每个关键元素都有 minHeight 保底，永不被压扁到 0。
+        (4) 没有嵌套滚动 —— LogConsole 内部已去掉 ScrollArea，autoScroll 通过 scrollIntoView
+            驱动主滚动容器。
+      */}
+      <Box
+        ref={mainScrollRef}
+        style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}
+      >
+        <Box
+          p="md"
           style={{
-            flex: 3,
-            minHeight: 200,
+            minHeight: '100%',
             display: 'flex',
             flexDirection: 'column'
           }}
         >
-          <Tabs.List style={{ flexShrink: 0 }}>
-            <Tabs.Tab value="adb" leftSection={<IconBrandAndroid size={16} />}>
-              ADB · 安卓原系统
-            </Tabs.Tab>
-            <Tabs.Tab value="ssh" leftSection={<IconTerminal2 size={16} />}>
-              SSH · 已刷 OpenWrt
-            </Tabs.Tab>
-            <Tabs.Tab value="update" leftSection={<IconSparkles size={16} />}>
-              <Indicator color="grape" size={8} offset={-4} disabled={!update?.hasUpdate} processing>
-                升级更新
-              </Indicator>
-            </Tabs.Tab>
-          </Tabs.List>
+          <Tabs value={tab} onChange={setTab} radius="md" style={{ flexShrink: 0 }}>
+            <Tabs.List>
+              <Tabs.Tab value="adb" leftSection={<IconBrandAndroid size={16} />}>
+                ADB · 安卓原系统
+              </Tabs.Tab>
+              <Tabs.Tab value="ssh" leftSection={<IconTerminal2 size={16} />}>
+                SSH · 已刷 OpenWrt
+              </Tabs.Tab>
+              <Tabs.Tab value="update" leftSection={<IconSparkles size={16} />}>
+                <Indicator color="grape" size={8} offset={-4} disabled={!update?.hasUpdate} processing>
+                  升级更新
+                </Indicator>
+              </Tabs.Tab>
+            </Tabs.List>
 
-          {/* 面板滚动区：内容超出时仅此处出现纵向滚动条，不会挤压下方日志 */}
-          <Box
-            ref={tabScrollRef}
-            style={{
-              flex: 1,
-              minHeight: 0,
-              overflowY: 'auto',
-              overflowX: 'hidden'
-            }}
-          >
             <Tabs.Panel value="adb" pt="md">
               <Stack gap="md">
                 <ConnectionPanel />
@@ -168,17 +165,21 @@ export default function App() {
             <Tabs.Panel value="update" pt="md" keepMounted>
               <UpdatePanel />
             </Tabs.Panel>
-          </Box>
-        </Tabs>
+          </Tabs>
 
-        {running && (
-          <Box mt="md" style={{ flexShrink: 0 }}>
-            <ProgressOverlay />
-          </Box>
-        )}
+          {running && (
+            <Box mt="md" style={{ flexShrink: 0 }}>
+              <ProgressOverlay />
+            </Box>
+          )}
 
-        <Box mt="md" style={{ flex: 2, minHeight: 200, display: 'flex' }}>
-          <LogConsole />
+          {/*
+            LogConsole 包装层：flex:1 让其在空间充裕时撑满剩余视口高度（响应式），
+            minHeight:280 保证不论窗口多小、Tab 内容多长，日志区都有可用高度。
+          */}
+          <Box mt="md" style={{ flex: 1, minHeight: 280, display: 'flex' }}>
+            <LogConsole />
+          </Box>
         </Box>
       </Box>
 

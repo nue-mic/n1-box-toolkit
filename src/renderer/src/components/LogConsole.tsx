@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react'
-import { Paper, Group, Text, ScrollArea, Switch, Tooltip, ActionIcon, Badge } from '@mantine/core'
+import { useLayoutEffect, useRef } from 'react'
+import { Paper, Group, Text, Switch, Tooltip, ActionIcon, Badge } from '@mantine/core'
 import { IconTerminal2, IconCopy, IconTrash, IconDeviceFloppy } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { useStore } from '../store'
@@ -21,21 +21,23 @@ export function LogConsole() {
   const clearLogs = useStore((s) => s.clearLogs)
   const autoScroll = useStore((s) => s.autoScroll)
   const setAutoScroll = useStore((s) => s.setAutoScroll)
-  const viewportRef = useRef<HTMLDivElement>(null)
+  const lastLineRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    // 实时高频日志用瞬时贴底，避免平滑动画追不上而抖动
-    if (autoScroll && viewportRef.current) {
-      viewportRef.current.scrollTop = viewportRef.current.scrollHeight
+  // 新版日志面板不自带内部滚动条 —— 整页统一由 App 外层主滚动容器接管。
+  // autoScroll 时让最后一行 scrollIntoView，浏览器会自动定位到最近的可滚动祖先（即主滚动容器）。
+  // 用 useLayoutEffect 在 commit 后 paint 前同步执行，避免一帧"旧位置→新位置"的视觉跳动。
+  useLayoutEffect(() => {
+    if (autoScroll && lastLineRef.current) {
+      lastLineRef.current.scrollIntoView({ block: 'end', inline: 'nearest' })
     }
   }, [logs, autoScroll])
 
-  const onCopy = async () => {
+  const onCopy = async (): Promise<void> => {
     await navigator.clipboard.writeText(logToText(logs))
     notifications.show({ color: 'teal', message: '日志已复制到剪贴板', autoClose: 1500 })
   }
 
-  const onSave = async () => {
+  const onSave = async (): Promise<void> => {
     const r = await api.saveLog(logToText(logs))
     if (r.ok) notifications.show({ color: 'teal', message: `日志已保存：${r.path}`, autoClose: 2500 })
     else if (r.error) notifications.show({ color: 'red', message: `保存失败：${r.error}` })
@@ -46,9 +48,14 @@ export function LogConsole() {
       className="glass"
       radius="lg"
       p="xs"
-      style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}
+      style={{
+        // 不再 flex:1，改由外层包装控制最低高度；内容自然撑高，与外层主滚动联动
+        width: '100%',
+        display: 'flex',
+        flexDirection: 'column'
+      }}
     >
-      <Group justify="space-between" px="xs" pt={4} pb="xs">
+      <Group justify="space-between" px="xs" pt={4} pb="xs" style={{ flexShrink: 0 }}>
         <Group gap="xs">
           <IconTerminal2 size={16} color="var(--mantine-color-brand-4)" />
           <Text fw={700} size="sm">
@@ -83,27 +90,24 @@ export function LogConsole() {
         </Group>
       </Group>
 
-      <ScrollArea
-        viewportRef={viewportRef}
-        style={{ flex: 1, minHeight: 0 }}
-        type="auto"
-        scrollbarSize={9}
-      >
-        <div className="log-viewport" style={{ padding: '4px 10px' }}>
-          {logs.length === 0 ? (
-            <Text size="sm" c="dimmed" ta="center" mt="xl">
-              暂无日志。填写 IP 后点「检测设备」或选择上方操作即可开始。
-            </Text>
-          ) : (
-            logs.map((l) => (
-              <div key={l.id} className="log-line">
-                <span className="log-ts">{fmtTime(l.ts)}</span>
-                <span className={`log-${l.level}`}>{l.text}</span>
-              </div>
-            ))
-          )}
-        </div>
-      </ScrollArea>
+      <div className="log-viewport" style={{ padding: '4px 10px', flex: 1 }}>
+        {logs.length === 0 ? (
+          <Text size="sm" c="dimmed" ta="center" mt="xl">
+            暂无日志。填写 IP 后点「检测设备」或选择上方操作即可开始。
+          </Text>
+        ) : (
+          logs.map((l, idx) => (
+            <div
+              key={l.id}
+              ref={idx === logs.length - 1 ? lastLineRef : undefined}
+              className="log-line"
+            >
+              <span className="log-ts">{fmtTime(l.ts)}</span>
+              <span className={`log-${l.level}`}>{l.text}</span>
+            </div>
+          ))
+        )}
+      </div>
     </Paper>
   )
 }
